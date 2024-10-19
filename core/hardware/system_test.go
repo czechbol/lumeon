@@ -24,7 +24,7 @@ func TestSystemTestSuite(t *testing.T) {
 
 func (s *SystemTestSuite) TestHalt() {
 	s.busMock.SendDataHandler = func(addr uint16, data ...byte) error {
-		s.Equal(uint16(daughterboardAddress), addr)
+		s.Equal(daughterboardAddress, addr)
 		s.Equal([]byte{cmdSystemHalt}, data)
 		return nil
 	}

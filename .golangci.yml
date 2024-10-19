@@ -103,24 +103,24 @@ linters-settings:
       severity: warning
       arguments:
       - maxLitCount: "3"
-        allowStrs: '""'
-        allowInts: "0,1,2,3"
-        allowFloats: "0.0,0.,1.0,1.,2.0,2."
+        allowStrs: '"","error","x","y"'
+        allowInts: "0,1,2,3,7,8,32,63,64,100,127,128,255"
+        allowFloats: "0.0,0.,1.0,1.,2.0,2.,1000.0"
 issues:
   exclude-rules:
-  - path: '(.+)_test\.go'
-    linters:
-    - err113
-    - gosec
-    - bodyclose
-  - path: '(.+)_test\.go'
-    linters:
-    - revive
-    text: "^add-constant:.*"
-  - path: 'app/config/settings/settings\.go'
-    linters:
-    - revive
-    text: "^add-constant:.*"
+    - path: '(.+)_test\.go'
+      linters:
+        - goerr113
+        - gosec
+        - bodyclose
+    - path: '(.+)_test\.go'
+      linters:
+        - revive
+      text: "^add-constant:.*"
+    - path: 'app/config/settings/settings\.go'
+      linters:
+        - revive
+      text: "^add-constant:.*"
 output:
   formats:
   - format: line-number

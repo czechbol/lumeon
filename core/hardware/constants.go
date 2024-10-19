@@ -23,12 +23,12 @@ const (
 	cmdSystemHalt           byte = 0xFF
 	cmdWriteData            byte = 0x40
 
-	// Misc
+	// Misc.
 	displayWidth  int = 128
 	displayHeight int = 64
 )
 
 // GPIO Constants.
 const (
-	buttonPinAddress byte = 0x04
+	buttonPinAddress byte = 0x04 //nolint:unused
 )

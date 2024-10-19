@@ -24,7 +24,7 @@ func TestFanTestSuite(t *testing.T) {
 
 func (s *FanTestSuite) TestSetSpeed() {
 	s.busMock.SendDataHandler = func(addr uint16, data ...byte) error {
-		s.Equal(uint16(daughterboardAddress), addr)
+		s.Equal(daughterboardAddress, addr)
 		s.Equal([]byte{50}, data)
 		return nil
 	}

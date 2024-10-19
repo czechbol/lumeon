@@ -4,20 +4,18 @@ import (
 	"image"
 	"image/draw"
 	"image/gif"
-	_ "image/png"
 	"log/slog"
 	"time"
 	"unicode/utf8"
 
 	"github.com/czechbol/lumeon/core/hardware/i2c"
 	"github.com/czechbol/lumeon/core/hardware/types"
-	"periph.io/x/conn/v3/display"
-	"periph.io/x/devices/v3/ssd1306"
-	"periph.io/x/devices/v3/ssd1306/image1bit"
-
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/basicfont"
 	"golang.org/x/image/math/fixed"
+	"periph.io/x/conn/v3/display"
+	"periph.io/x/devices/v3/ssd1306"
+	"periph.io/x/devices/v3/ssd1306/image1bit"
 )
 
 type OLED interface {
