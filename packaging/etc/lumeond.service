@@ -1,0 +1,14 @@
+[Unit]
+Description=Reimplementation of Argon 40 software for their Raspberry Pi based NAS solutions.
+Documentation=https://github.com/czechbol/lumeon
+Requires=network-online.target
+After=network-online.target
+
+[Service]
+EnvironmentFile=-/etc/lumeon/environment
+ExecStart=/usr/bin/lumeond
+Restart=on-failure
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target

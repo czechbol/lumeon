@@ -1,0 +1,13 @@
+# Log level for the application
+logLevel = "info"
+
+[fan]
+enabled = true
+
+# CPU fan curve settings
+# Format: "temperature" = "fan speed"
+cpuCurve = { "0" = "20", "30" = "25", "40" = "35", "50" = "50", "60" = "70", "70" = "90", "75" = "100" }
+
+# HDD fan curve settings
+# Format: "temperature" = "fan speed"
+hddCurve = { "0" = "20", "30" = "25", "40" = "50", "50" = "85", "60" = "100" }

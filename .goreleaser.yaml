@@ -1,0 +1,122 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj
+
+version: 2
+
+project_name: "lumeon"
+
+before:
+  hooks:
+    - go mod tidy
+    - go mod download
+
+builds:
+  - id: build
+    binary: lumeond
+    main: ./cmd/main.go
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -w -s -X "github.com/czechbol/lumeon/app.gitCommit={{ .FullCommit }}" -X "github.com/czechbol/lumeon/app.version=v{{ .Version }}" -X "github.com/czechbol/lumeon/app.buildDate={{ .Date }}"
+    goos:
+      - linux
+    goarch:
+      - arm
+      - arm64
+    goarm:
+      - "7"
+
+upx:
+  - enabled: true
+
+nfpms:
+  - id: lumeond
+    builds:
+      - build
+
+    homepage: https://github.com/czechbol/lumeon
+    maintainer: czechbol
+
+    description: Reimplementation of Argon 40 software for their Raspberry Pi based NAS solutions.
+
+    license: Mozilla Public License 2.0
+
+    formats:
+      - apk
+      - deb
+      - rpm
+      - archlinux
+
+    umask: 0o002
+
+    dependencies:
+      - util-linux
+      - smartmontools
+      - coreutils
+
+    provides:
+      - lumeond
+
+    conflicts:
+      - argon-config
+      - neond
+
+    bindir: /usr/bin
+
+    # Section.
+    section: utils
+
+    # Priority.
+    priority: extra
+
+    contents:
+      - src: packaging/etc/lumeon.toml
+        dst: /etc/lumeon/lumeon.toml
+        type: "config|noreplace"
+
+      - src: packaging/etc/lumeond.service
+        dst: /etc/systemd/system/lumeond.service
+
+    scripts:
+      preinstall: "packaging/scripts/preinstall.sh"
+      postinstall: "packaging/scripts/postinstall.sh"
+      preremove: "packaging/scripts/preremove.sh"
+
+    rpm:
+      # The package group.
+      # This option is deprecated by most distros but required by old distros
+      # like CentOS 5 / EL 5 and earlier.
+      group: Unspecified
+
+      packager: czechbol
+
+      compression: lzma
+
+      # Prefixes for relocatable packages.
+      prefixes:
+        - /usr/bin
+
+archives:
+  - id: lumeond
+    builds:
+      - 'build'
+    files:
+      - LICENSE
+
+checksum:
+  name_template: "checksums.txt"
+
+release:
+  github:
+    owner: "czechbol"
+    name: "{{ .ProjectName }}"
+  disable: false
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"

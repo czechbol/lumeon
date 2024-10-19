@@ -1,0 +1,69 @@
+# yamlfmt configuration file
+
+# The line ending to use. Can be 'lf' or 'crlf'. Default is 'crlf' on Windows, 'lf' otherwise.
+line_ending: lf
+
+# Whether to use doublestar for include and exclude paths. Default is false.
+doublestar: false
+
+# Whether to continue formatting and not exit with code 1 when an invalid yaml file is found. Default is false.
+continue_on_error: true
+
+# The paths to exclude from formatting. Default is an empty list.
+# exclude:
+#   - path/to/exclude1
+
+# Whether to use gitignore files for exclude paths. This is in addition to the patterns from the 'exclude' option. Default is false.
+# gitignore_excludes: true
+
+# The path to the gitignore file to use. Default is '.gitignore'.
+# gitignore_path: .gitignore
+
+# Regex patterns to match file contents for. If the file content matches the regex, the file will be excluded. Default is an empty list.
+# regex_exclude:
+#   - regex1
+#   - regex2
+
+# The extensions to use for standard mode path collection. Default is an empty list.
+extensions:
+- .yaml
+- .yamlfmt
+- .yml
+
+# Formatter settings. Default is 'type: basic'.
+formatter:
+  # The type of the formatter. Currently, only 'basic' is supported.
+  type: basic
+
+  # The indentation level in spaces to use for the formatted yaml. Default is 2.
+  indent: 2
+
+  # Whether to include '---' at document start. Default is false.
+  include_document_start: false
+
+  # The line ending to use. Can be 'lf' or 'crlf'. Default is 'crlf' on Windows, 'lf' otherwise. This setting will be overwritten by the global 'line_ending'.
+  line_ending: lf
+
+  # Whether to retain line breaks in formatted yaml. Default is false.
+  retain_line_breaks: true
+
+  # Whether to retain line breaks in formatted yaml, but only keep a single line in groups of many blank lines. Default is false. This takes precedence over 'retain_line_breaks'.
+  retain_line_breaks_single: true
+
+  # Whether to reject any YAML anchors or aliases found in the document. Default is false.
+  disallow_anchors: false
+
+  # The maximum line length. Default is 0, which means no limit.
+  # max_line_length: 120
+
+  # Whether to preserve newlines in folded block scalars (blocks that start with '>'). Default is false.
+  scan_folded_as_literal: true
+
+  # Whether to render '-' array items (block sequence items) without an increased indent. Default is false.
+  indentless_arrays: true
+
+  # Whether to assume that any well formed merge using just a '<<' token will be a merge, and drop the '!!merge' tag from the formatted result. Default is false.
+  drop_merge_tag: false
+
+  # The number of padding spaces to insert before line comments. Default is 1.
+  pad_line_comments: 1
