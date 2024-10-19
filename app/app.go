@@ -52,7 +52,7 @@ func NewApp(config config.Config) *CoreApp {
 func (app *CoreApp) Init() {
 	// set logger
 	logger := slog.New(slogor.NewHandler(os.Stderr, slogor.Options{
-		TimeFormat: time.RFC3339,
+		TimeFormat: "2006-01-02 15:04:05.000",
 		Level:      app.config.LogLevel(),
 		ShowSource: false,
 	}))

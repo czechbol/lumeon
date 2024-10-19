@@ -24,7 +24,7 @@ type img struct {
 func main() {
 	// Initialize logger
 	logger := slog.New(slogor.NewHandler(os.Stderr, slogor.Options{
-		TimeFormat: time.RFC3339,
+		TimeFormat: "2006-01-02 15:04:05.000",
 		Level:      slog.LevelDebug,
 		ShowSource: false,
 	}))
