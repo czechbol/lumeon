@@ -10,7 +10,7 @@ import (
 )
 
 // RunAndManageApp manages App lifecycle and handles signals.
-func RunAndManageApp(app App) {
+func RunAndManageApp(app App) int {
 	var exitCode int = 0
 	app.Init()
 
@@ -44,5 +44,5 @@ func RunAndManageApp(app App) {
 	}
 
 	slog.Info("bye")
-	os.Exit(exitCode)
+	return exitCode
 }

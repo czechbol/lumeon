@@ -87,12 +87,16 @@ func stringMapStringToPointSlice(input map[string]string) []config.FanCurvePoint
 			os.Exit(1)
 		}
 
+		ukey := uint8(key)
+
 		if value < 0 || value > 100 {
 			slog.Error("fan speeds must be between 0 and 100", "speed", value)
 			os.Exit(1)
 		}
 
-		output = append(output, config.FanCurvePoint{Temperature: uint8(key), Speed: uint8(value)})
+		uvalue := uint8(value)
+
+		output = append(output, config.FanCurvePoint{Temperature: ukey, Speed: uvalue})
 	}
 
 	sort.Slice(output, func(i, j int) bool {
