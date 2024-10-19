@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"image/jpeg"
@@ -18,7 +19,6 @@ import (
 type img struct {
 	img  *image.Gray
 	name string
-	file string
 }
 
 func main() {
@@ -32,10 +32,13 @@ func main() {
 
 	// Generate test images
 	images := []img{
-		{generateCheckerboardImage(128, 64), "checkerboard", "image1.jpg"},
-		{generateVerticalStripesImage(128, 64), "v-stripes", "image2.jpg"},
-		{generateHorizontalStripesImage(128, 64), "h-stripes", "image3.jpg"},
-		{generateRandomImage(128, 64), "rand-dots", "image4.jpg"},
+		{generateCheckerboardImage(128, 64), "checkerboard"},
+		{generateVerticalStripesImage(128, 64), "v-stripes"},
+		{generateHorizontalStripesImage(128, 64), "h-stripes"},
+		{generateCrossImage(128, 64), "cross"},
+		{generateDiagonalCrossImage(128, 64), "diag-cross"},
+		{generateDiamondImage(128, 64), "diamond"},
+		{generateRandomImage(128, 64), "rand-dots"},
 	}
 	black := image.NewGray(image.Rect(0, 0, 128, 64))
 
@@ -120,6 +123,57 @@ func generateHorizontalStripesImage(width, height int) *image.Gray {
 	return img
 }
 
+func generateCrossImage(width, height int) *image.Gray {
+	img := image.NewGray(image.Rect(0, 0, width, height))
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			if y < height/2 && x < width/2 {
+				img.Set(x, y, color.White)
+			} else if y >= height/2 && x >= width/2 {
+				img.Set(x, y, color.White)
+			} else {
+				img.Set(x, y, color.Black)
+			}
+		}
+	}
+	return img
+}
+
+func generateDiagonalCrossImage(width, height int) *image.Gray {
+	img := image.NewGray(image.Rect(0, 0, width, height))
+
+	ratio := width / height
+
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			if (y < height/2 && (x <= y*ratio || x >= width-y*ratio)) ||
+				(y >= height/2 && (x <= width-y*ratio || x >= y*ratio)) {
+				img.Set(x, y, color.White)
+			} else {
+				img.Set(x, y, color.Black)
+			}
+		}
+	}
+	return img
+}
+
+func generateDiamondImage(width, height int) *image.Gray {
+	img := image.NewGray(image.Rect(0, 0, width, height))
+	midX, midY := width/2, height/2
+
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			// Adjust the diamond condition for rectangular aspect ratio
+			if abs(midX-x)*height/width+abs(midY-y) <= midY {
+				img.Set(x, y, color.White) // Inside the diamond
+			} else {
+				img.Set(x, y, color.Black) // Outside the diamond
+			}
+		}
+	}
+	return img
+}
+
 //nolint:gosec
 func generateRandomImage(width, height int) *image.Gray {
 	img := image.NewGray(image.Rect(0, 0, width, height))
@@ -138,7 +192,7 @@ func generateRandomImage(width, height int) *image.Gray {
 
 func saveImages(images []img) {
 	for _, img := range images {
-		if err := saveJPEG(img.img, img.name); err != nil {
+		if err := saveJPEG(img.img, fmt.Sprintf("%s.jpg", img.name)); err != nil {
 			slog.Error("failed to save image", "name", img.name, "error", err)
 		}
 	}
@@ -170,4 +224,11 @@ func displayImages(display hardware.OLED, images []img, duration time.Duration) 
 			time.Sleep(1 * time.Second)
 		}
 	}
+}
+
+func abs(a int) int {
+	if a < 0 {
+		return -a
+	}
+	return a
 }
