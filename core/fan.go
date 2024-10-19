@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/czechbol/lumeon/app/config"
-	hardware "github.com/czechbol/lumeon/core/hardware/components"
+	"github.com/czechbol/lumeon/core/hardware"
 )
 
 type FanService interface {

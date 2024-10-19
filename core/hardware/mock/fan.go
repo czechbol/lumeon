@@ -1,6 +1,6 @@
 package mock
 
-import "github.com/czechbol/lumeon/core/hardware/components"
+import "github.com/czechbol/lumeon/core/hardware"
 
 // FanMock defines mocks for Fan.
 type FanMock struct {
@@ -8,7 +8,7 @@ type FanMock struct {
 	SetSpeedHandlerCalled int
 }
 
-var _ components.Fan = (*FanMock)(nil)
+var _ hardware.Fan = (*FanMock)(nil)
 
 func (m *FanMock) SetSpeed(speed uint8) error {
 	m.SetSpeedHandlerCalled++

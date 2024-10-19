@@ -1,10 +1,9 @@
-package components
+package hardware
 
 import (
 	"testing"
 
-	"github.com/czechbol/lumeon/core/hardware/components/i2c/mock"
-	"github.com/czechbol/lumeon/core/hardware/constants"
+	"github.com/czechbol/lumeon/core/hardware/i2c/mock"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -24,14 +23,14 @@ func TestSystemTestSuite(t *testing.T) {
 }
 
 func (s *SystemTestSuite) TestHalt() {
-	s.busMock.SendBytesHandler = func(addr uint16, bytes []byte) error {
-		s.Equal(constants.I2C.Devices.Daughter, addr)
-		s.Equal(constants.I2C.Commands.Halt, bytes)
+	s.busMock.SendDataHandler = func(addr uint16, data ...byte) error {
+		s.Equal(uint16(daughterboardAddress), addr)
+		s.Equal([]byte{cmdSystemHalt}, data)
 		return nil
 	}
 
 	err := s.system.Halt()
 	s.NoError(err)
 
-	s.Equal(1, s.busMock.SendBytesHandlerCalled)
+	s.Equal(1, s.busMock.SendDataHandlerCalled)
 }

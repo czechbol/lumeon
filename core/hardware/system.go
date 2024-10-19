@@ -1,11 +1,10 @@
-package components
+package hardware
 
 import (
 	"log/slog"
 	"os/exec"
 
-	"github.com/czechbol/lumeon/core/hardware/components/i2c"
-	"github.com/czechbol/lumeon/core/hardware/constants"
+	"github.com/czechbol/lumeon/core/hardware/i2c"
 )
 
 type System interface {
@@ -33,5 +32,5 @@ func (s systemImpl) Shutdown() error {
 func (s systemImpl) Halt() error {
 	slog.Warn("halting the system")
 
-	return s.bus.SendBytes(constants.I2C.Devices.Daughter, constants.I2C.Commands.Halt)
+	return s.bus.SendData(daughterboardAddress, cmdSystemHalt)
 }

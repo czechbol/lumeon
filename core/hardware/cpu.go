@@ -1,4 +1,4 @@
-package components
+package hardware
 
 import (
 	"fmt"
@@ -31,7 +31,7 @@ func (c *cpuImpl) GetAverageTemp() (float64, error) {
 	}
 
 	if len(matches) == 0 {
-		return 0, fmt.Errorf("no thermal zones found")
+		return 0, ErrNoThermalZones
 	}
 
 	var totalTemp float64
@@ -51,7 +51,7 @@ func (c *cpuImpl) GetAverageTemp() (float64, error) {
 	}
 
 	if count == 0 {
-		return 0, fmt.Errorf("no valid temperature readings")
+		return 0, ErrNoValidTemperature
 	}
 
 	return totalTemp / float64(count), nil

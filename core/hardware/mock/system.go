@@ -1,6 +1,6 @@
 package mock
 
-import "github.com/czechbol/lumeon/core/hardware/components"
+import "github.com/czechbol/lumeon/core/hardware"
 
 // SystemMock defines mocks for System.
 type SystemMock struct {
@@ -10,7 +10,7 @@ type SystemMock struct {
 	HaltHandlerCalled     int
 }
 
-var _ components.System = (*SystemMock)(nil)
+var _ hardware.System = (*SystemMock)(nil)
 
 func (m *SystemMock) Shutdown() error {
 	m.ShutdownHandlerCalled++

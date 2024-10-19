@@ -11,7 +11,8 @@ import (
 )
 
 type I2CBus interface {
-	SendBytes(addr uint16, bytes []byte) error
+	GetBus() i2c.Bus
+	SendData(addr uint16, bytes ...byte) error
 }
 
 type i2cBusImpl struct {
@@ -31,6 +32,7 @@ func NewBus(busName string) (I2CBus, error) {
 	i2cBus, err := i2creg.Open(busName)
 	if err != nil {
 		slog.Error("cannot open i2c bus")
+		slog.Warn("please make sure you enabled i2c in your system")
 		return nil, err
 	}
 
@@ -39,12 +41,16 @@ func NewBus(busName string) (I2CBus, error) {
 	}, nil
 }
 
-func (Bus i2cBusImpl) SendBytes(addr uint16, bytes []byte) error {
-	slog.Debug(fmt.Sprintf("sending bytes to 0x%x: %v", addr, bytes))
+func (ib i2cBusImpl) GetBus() i2c.Bus {
+	return ib.bus
+}
 
-	device := i2c.Dev{Bus: Bus.bus, Addr: uint16(addr)}
+func (ib i2cBusImpl) SendData(addr uint16, data ...byte) error {
+	slog.Debug(fmt.Sprintf("sending bytes to 0x%x: %x", addr, data))
 
-	_, err := device.Write(bytes)
+	device := i2c.Dev{Bus: ib.bus, Addr: addr}
+
+	_, err := device.Write(data)
 	if err != nil {
 		slog.Error(fmt.Sprintf("cannot send bytes to %d: %v", addr, err))
 		return err

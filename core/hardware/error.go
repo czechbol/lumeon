@@ -3,27 +3,19 @@ package hardware
 import "errors"
 
 var (
-	// Image related errors.
-	ErrInvalidImageSize         = errors.New("invalid image size")
-	ErrUnsupportedImagePosition = errors.New("unsupported image position")
-
-	// Pixel related errors.
-	ErrPixelConversion = errors.New("could not convert pixel to color.Gray16")
-
-	// Text related errors.
-	ErrIndexFileFormat = errors.New("index file must have format 'name-XxY.bin'")
-
-	// XY related errors.
-	ErrInvalidXYFormat = errors.New("invalid XY format")
+	ErrNotImplemented = errors.New("not implemented")
 
 	// Fan related errors.
 	ErrInvalidFanSpeed = errors.New("invalid fan speed")
 
 	// Temperature related errors.
 	ErrTemperatureNotFound = errors.New("temperature not found")
+	ErrNoThermalZones      = errors.New("no thermal zones found")
+	ErrNoValidTemperature  = errors.New("no valid temperature readings")
 
-	// Smartctl related errors.
-	ErrTemperatureAttributeNotFound = errors.New("temperature attribute was not present in smartctl output")
-
-	ErrNotImplemented = errors.New("not implemented")
+	// Display related errors.
+	ErrInvalidImageSize        = errors.New("invalid image size")
+	ErrInvalidMemoryMode       = errors.New("invalid memory mode")
+	ErrInvalidPageStart        = errors.New("invalid page start address")
+	ErrInvalidHorizontalOffset = errors.New("invalid horizontal offset")
 )
