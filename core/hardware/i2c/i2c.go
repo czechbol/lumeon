@@ -46,7 +46,7 @@ func (ib i2cBusImpl) GetBus() i2c.Bus {
 }
 
 func (ib i2cBusImpl) SendData(addr uint16, data ...byte) error {
-	slog.Debug(fmt.Sprintf("sending bytes to 0x%x: %x", addr, data))
+	slog.Debug(fmt.Sprintf("sending bytes to %x: %v", addr, data))
 
 	device := i2c.Dev{Bus: ib.bus, Addr: addr}
 

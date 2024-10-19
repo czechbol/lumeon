@@ -116,7 +116,7 @@ func (fs *fanServiceImpl) adjustFanSpeed(currentSpeed uint8) (uint8, error) {
 		}
 		currentSpeed = speed
 	} else {
-		slog.Debug("requested fan speed did not change", "current", currentSpeed)
+		slog.Info("requested fan speed did not change", "current", currentSpeed)
 	}
 
 	return currentSpeed, nil
