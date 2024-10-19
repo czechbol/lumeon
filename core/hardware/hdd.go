@@ -1,15 +1,12 @@
 package hardware
 
 import (
-	"fmt"
+	"encoding/json"
 	"log/slog"
+	"os/exec"
+	"strings"
 
-	"github.com/anatol/smart.go"
-	"github.com/jaypipes/ghw"
-)
-
-const (
-	temperatureAttributeID = 194
+	"github.com/czechbol/lumeon/core/hardware/dto"
 )
 
 type HDD interface {
@@ -23,25 +20,20 @@ func NewHDD() HDD {
 }
 
 func (h *hddImpl) GetAverageTemp() (float64, error) {
-	block, err := ghw.Block()
+	// Get a list of all storage devices
+	devices, err := getStorageDevices()
 	if err != nil {
-		return 0, fmt.Errorf("error getting block devices: %w", err)
+		slog.Error("error getting storage devices", "error", err)
+		return 0, err
 	}
 
 	total := 0.0
 	count := 0
 
-	for _, disk := range block.Disks {
-		dev, err := smart.Open("/dev/" + disk.Name)
+	for _, device := range devices {
+		temp, err := getDeviceTemperature(device)
 		if err != nil {
-			slog.Debug("error opening device", "device", disk.Name, "error", err)
-			continue
-		}
-		defer dev.Close()
-
-		temp, err := getDeviceTemperature(dev)
-		if err != nil {
-			slog.Debug("error getting temperature", "device", disk.Name, "error", err)
+			slog.Warn("error getting temperature for device", "device", device, "error", err)
 			continue
 		}
 
@@ -50,43 +42,51 @@ func (h *hddImpl) GetAverageTemp() (float64, error) {
 	}
 
 	if count == 0 {
+		slog.Error("no valid temperature readings found")
 		return 0, ErrTemperatureNotFound
 	}
 
-	return total / float64(count), nil
+	averageTemp := total / float64(count)
+	slog.Debug("average temperature calculated", "averageTemp", averageTemp)
+	return averageTemp, nil
 }
 
-func getDeviceTemperature(dev smart.Device) (float64, error) {
-	attrs, err := dev.ReadGenericAttributes()
+func getStorageDevices() ([]string, error) {
+	cmd := exec.Command("lsblk", "-ndo", "NAME")
+	output, err := cmd.Output()
 	if err != nil {
+		slog.Error("error executing lsblk", "error", err)
+		return nil, err
+	}
+
+	devices := strings.Split(strings.TrimSpace(string(output)), "\n")
+	slog.Debug("storage devices found", "devices", devices)
+	return devices, nil
+}
+
+func getDeviceTemperature(device string) (float64, error) {
+	cmd := exec.Command("smartctl", "-d", "sat", "-A", "/dev/"+device, "-j") //nolint:gosec
+	output, err := cmd.Output()
+	if err != nil {
+		slog.Error("error executing smartctl for device", "device", device, "error", err)
 		return 0, err
 	}
 
-	if attrs.Temperature != 0 {
-		return float64(attrs.Temperature), nil
+	var smartctlOutput dto.SmartctlOutput
+
+	err = json.Unmarshal(output, &smartctlOutput)
+	if err != nil {
+		slog.Error("error unmarshalling JSON output", "error", err)
+		return 0, err
 	}
 
-	// If generic attributes don't provide temperature, try device-specific methods
-	switch d := dev.(type) {
-	case *smart.SataDevice:
-		data, err := d.ReadSMARTData()
-		if err != nil {
-			return 0, err
-		}
-		if attr, ok := data.Attrs[temperatureAttributeID]; ok {
-			temp, _, _, _, err := attr.ParseAsTemperature()
-			if err != nil {
-				return 0, err
-			}
-			return float64(temp), nil
-		}
-	case *smart.NVMeDevice:
-		sm, err := d.ReadSMART()
-		if err != nil {
-			return 0, err
-		}
-		return float64(sm.Temperature - 273), nil // Convert Kelvin to Celsius
+	if smartctlOutput.JSONFormatVersion[0] != 1 {
+		slog.Error("unsupported JSON format version", "version", smartctlOutput.JSONFormatVersion)
+		return 0, ErrTemperatureNotFound
 	}
 
-	return 0, ErrTemperatureNotFound
+	temp := smartctlOutput.Temperature.Current
+
+	slog.Debug("device temperature found", "device", device, "temperature", temp)
+	return float64(temp), nil
 }
