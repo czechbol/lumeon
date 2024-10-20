@@ -1,9 +1,11 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"image"
 	"image/color"
+	"image/gif"
 	"image/jpeg"
 	"log/slog"
 	"math/rand"
@@ -21,7 +23,11 @@ type img struct {
 	name string
 }
 
+//nolint:cyclop
 func main() {
+	gifPath := flag.String("g", "", "path to the GIF file")
+	flag.Parse()
+
 	// Initialize logger
 	logger := slog.New(slogor.NewHandler(os.Stderr, slogor.Options{
 		TimeFormat: "2006-01-02 15:04:05.000",
@@ -40,12 +46,21 @@ func main() {
 		{generateDiamondImage(128, 64), "diamond"},
 		{generateRandomImage(128, 64), "rand-dots"},
 	}
-	black := image.NewGray(image.Rect(0, 0, 128, 64))
+
+	var processedGIF *gif.GIF
+	var err error
+	if gifPath != nil && *gifPath != "" {
+		processedGIF, err = loadGIF(*gifPath)
+		if err != nil {
+			slog.Error("failed to load GIF", "error", err)
+			os.Exit(1)
+		}
+	}
 
 	// Check if the runtime architecture is amd64
 	if runtime.GOARCH == "amd64" {
-		wd, err := os.Getwd()
-		if err != nil {
+		wd, wdErr := os.Getwd()
+		if wdErr != nil {
 			slog.Error("failed to get working directory", "error", err)
 			os.Exit(1)
 		}
@@ -54,6 +69,7 @@ func main() {
 		slog.Info("saving images to", "path", wd)
 
 		saveImages(images)
+		saveGIFFrames(processedGIF)
 		os.Exit(0)
 	}
 
@@ -71,14 +87,41 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Display images in a loop for 20 seconds
-	displayImages(display, images, 20*time.Second)
+	if processedGIF != nil {
+		err := display.DrawGIF(processedGIF)
+		if err != nil {
+			slog.Error("failed to draw GIF", "error", err)
+		}
+	} else {
+		err := displayImages(display, images, 2)
+		if err != nil {
+			slog.Error("failed to display images", "error", err)
+		}
+	}
 
 	// Clear the display
-	if err := display.DrawImage(black); err != nil {
+	if err := display.Clear(); err != nil {
 		slog.Error("failed to clear display", "error", err)
-		os.Exit(1)
 	}
+}
+
+func loadGIF(gifPath string) (*gif.GIF, error) {
+	// Load the GIF file
+	f, err := os.Open(gifPath)
+	if err != nil {
+		slog.Error("failed to open GIF file", "error", err)
+		return nil, err
+	}
+	defer f.Close()
+
+	// Decode the GIF file
+	gifFile, err := gif.DecodeAll(f)
+	if err != nil {
+		slog.Error("failed to decode GIF file", "error", err)
+		return nil, err
+	}
+
+	return gifFile, nil
 }
 
 func generateCheckerboardImage(width, height int) *image.Gray {
@@ -127,11 +170,12 @@ func generateCrossImage(width, height int) *image.Gray {
 	img := image.NewGray(image.Rect(0, 0, width, height))
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
-			if y < height/2 && x < width/2 {
+			switch {
+			case y < height/2 && x < width/2:
 				img.Set(x, y, color.White)
-			} else if y >= height/2 && x >= width/2 {
+			case y >= height/2 && x >= width/2:
 				img.Set(x, y, color.White)
-			} else {
+			default:
 				img.Set(x, y, color.Black)
 			}
 		}
@@ -198,7 +242,7 @@ func saveImages(images []img) {
 	}
 }
 
-func saveJPEG(img *image.Gray, filename string) error {
+func saveJPEG(img image.Image, filename string) error {
 	f, err := os.Create(filename)
 	if err != nil {
 		return err
@@ -208,22 +252,35 @@ func saveJPEG(img *image.Gray, filename string) error {
 	return jpeg.Encode(f, img, &jpeg.Options{Quality: 90})
 }
 
-//nolint:revive
-func displayImages(display hardware.OLED, images []img, duration time.Duration) {
-	startTime := time.Now()
-	for time.Since(startTime) < duration {
+func saveGIFFrames(gif *gif.GIF) {
+	// create the frames directory
+	//nolint:revive
+	if err := os.Mkdir("frames", 0755); err != nil {
+		slog.Error("failed to create frames directory", "error", err)
+	}
+
+	for i, img := range gif.Image {
+		if err := saveJPEG(img, fmt.Sprintf("frames/frame_%d.jpg", i)); err != nil {
+			slog.Error("failed to save GIF frame", "frame", i, "error", err)
+		}
+	}
+}
+
+func displayImages(display hardware.OLED, images []img, loops int) error {
+	for i := 0; i < loops; i++ {
 		for _, img := range images {
 			// Calculate the position to center the text
 			textWidth := len(img.name) * 7
 			x := (128 - textWidth) / 2
 
-			if err := display.DrawImageWithText(img.img, x, 24, img.name); err != nil {
-				slog.Error("failed to draw image", "name", img.name, "error", err)
-				return
+			err := display.DrawImageWithText(img.img, x, 64-13, img.name)
+			if err != nil {
+				return err
 			}
 			time.Sleep(1 * time.Second)
 		}
 	}
+	return nil
 }
 
 func abs(a int) int {

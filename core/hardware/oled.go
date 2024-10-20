@@ -2,6 +2,7 @@ package hardware
 
 import (
 	"image"
+	"image/color"
 	"image/draw"
 	"image/gif"
 	"log/slog"
@@ -23,10 +24,10 @@ type OLED interface {
 	SetContrast(brightness uint8) error
 	Clear() error
 	DrawImage(img image.Image) error
-	DrawGIF(gif *gif.GIF, fps int) error
+	DrawGIF(gif *gif.GIF) error
 	DrawText(text string, x, y int) error
 	DrawImageWithText(img image.Image, x, y int, text string) error
-	DrawGIFWithText(gif *gif.GIF, rate types.FrameRate, x, y int, text string) error
+	DrawGIFWithText(gif *gif.GIF, x, y int, text string) error
 	Scroll(direction types.ScrollDirection, rate types.FrameRate, startLine, endLine int) error
 }
 
@@ -37,19 +38,15 @@ type oledI2cImpl struct {
 func NewOLED(i2cBus i2c.I2CBus) (*oledI2cImpl, error) {
 	slog.Info("Initializing OLED display")
 	dev, err := ssd1306.NewI2C(i2cBus.GetBus(), &ssd1306.Opts{
-		W: displayWidth,
-		H: displayHeight,
+		W:                displayWidth,
+		H:                displayHeight,
+		MirrorHorizontal: true,
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	return &oledI2cImpl{dev: dev}, nil
-}
-
-func (o *oledI2cImpl) drawImage(img image.Image) error {
-	mirroredImg := mirrorImage(img)
-	return o.dev.Draw(o.dev.Bounds(), mirroredImg, image.Point{})
 }
 
 func (o *oledI2cImpl) Invert(blackOnWhite bool) error {
@@ -72,22 +69,24 @@ func (o *oledI2cImpl) DrawImage(img image.Image) error {
 	slog.Debug("Drawing image")
 	convertedImg := convert(o.dev, img)
 
-	return o.drawImage(convertedImg)
+	return o.dev.Draw(o.dev.Bounds(), convertedImg, image.Point{})
 }
 
-func (o *oledI2cImpl) DrawGIF(gif *gif.GIF, fps int) error {
-	slog.Debug("Drawing GIF", "fps", fps)
-	img := image1bit.NewVerticalLSB(o.dev.Bounds())
-	for _, frame := range gif.Image {
-		convertedImg := convert(o.dev, frame)
+func (o *oledI2cImpl) DrawGIF(gif *gif.GIF) error {
+	slog.Debug("Preparing GIF")
 
-		draw.Draw(img, img.Bounds(), convertedImg, image.Point{}, draw.Over)
-		err := o.drawImage(img)
+	convertedGIF := convertGIF(o.dev, gif)
+
+	slog.Debug("Drawing GIF")
+	for i := 0; gif.LoopCount <= 0 || i < gif.LoopCount*len(gif.Image); i++ {
+		index := i % len(gif.Image)
+		c := time.After(time.Duration(10*gif.Delay[index]) * time.Millisecond)
+		img := convertedGIF.Image[index]
+		err := o.dev.Draw(o.dev.Bounds(), img, image.Point{})
 		if err != nil {
 			return err
 		}
-
-		time.Sleep(time.Second / time.Duration(fps))
+		<-c
 	}
 	return nil
 }
@@ -97,31 +96,35 @@ func (o *oledI2cImpl) DrawText(text string, x, y int) error {
 	img := image1bit.NewVerticalLSB(o.dev.Bounds())
 	addLabel(img, x, y, text)
 
-	return o.drawImage(img)
+	return o.dev.Draw(o.dev.Bounds(), img, image.Point{})
 }
 
 func (o *oledI2cImpl) DrawImageWithText(img image.Image, x, y int, text string) error {
 	slog.Debug("Drawing image with text", "text", text, "x", x, "y", y)
 	convertedImg := convert(o.dev, img)
 	addLabel(convertedImg, x, y, text)
-	return o.drawImage(convertedImg)
+	return o.dev.Draw(o.dev.Bounds(), convertedImg, image.Point{})
 }
 
-func (o *oledI2cImpl) DrawGIFWithText(gif *gif.GIF, rate types.FrameRate, x, y int, text string) error {
-	slog.Debug("Drawing GIF with text", "text", text, "rate", rate, "x", x, "y", y)
-	img := image1bit.NewVerticalLSB(o.dev.Bounds())
-	for _, frame := range gif.Image {
-		convertedImg := convert(o.dev, frame)
-		addLabel(convertedImg, x, y, text)
+func (o *oledI2cImpl) DrawGIFWithText(gif *gif.GIF, x, y int, text string) error {
+	slog.Debug("Preparing GIF with text", "text", text, "x", x, "y", y)
 
-		draw.Draw(img, img.Bounds(), convertedImg, image.Point{}, draw.Over)
+	// preprocess the GIF to save on resources during rendering
+	convertedGIF := convertGIF(o.dev, gif)
+	for i := range convertedGIF.Image {
+		addLabel(convertedGIF.Image[i], x, y, text)
+	}
 
-		err := o.drawImage(img)
+	slog.Debug("Drawing GIF")
+	for i := 0; gif.LoopCount <= 0 || i < gif.LoopCount*len(gif.Image); i++ {
+		index := i % len(gif.Image)
+		c := time.After(time.Duration(10*gif.Delay[index]) * time.Millisecond)
+		img := convertedGIF.Image[index]
+		err := o.dev.Draw(o.dev.Bounds(), img, image.Point{})
 		if err != nil {
 			return err
 		}
-
-		time.Sleep(time.Second / time.Duration(frameRateToFPS(rate)))
+		<-c
 	}
 	return nil
 }
@@ -151,15 +154,65 @@ func resize(src image.Image, size image.Point) *image.NRGBA {
 
 // convert prepares the image for the OLED display format.
 func convert(disp display.Drawer, src image.Image) *image1bit.VerticalLSB {
-	slog.Debug("Converting image for display")
 	screenBounds := disp.Bounds()
 	size := screenBounds.Size()
-	src = resize(src, size)
-	img := image1bit.NewVerticalLSB(screenBounds)
-	r := src.Bounds()
-	r = r.Add(image.Point{(size.X - r.Max.X) / 2, (size.Y - r.Max.Y) / 2})
-	draw.Draw(img, r, src, image.Point{}, draw.Src)
-	return img
+
+	// Resize the image if necessary
+	if !src.Bounds().Size().Eq(size) {
+		src = resize(src, size)
+	}
+
+	// Convert the image to grayscale
+	grayImg := image.NewGray(src.Bounds())
+	draw.Draw(grayImg, src.Bounds(), src, image.Point{}, draw.Src)
+
+	// Convert the grayscale image to monochrome
+	monoImg := image1bit.NewVerticalLSB(screenBounds)
+	for y := 0; y < grayImg.Bounds().Dy(); y++ {
+		for x := 0; x < grayImg.Bounds().Dx(); x++ {
+			grayColor := grayImg.GrayAt(x, y)
+			if grayColor.Y > 128 {
+				monoImg.Set(x, y, color.White)
+			} else {
+				monoImg.Set(x, y, color.Black)
+			}
+		}
+	}
+
+	return monoImg
+}
+
+func convertGIF(disp display.Drawer, g *gif.GIF) *gif.GIF {
+	// Create a new GIF to store the fully rendered frames
+	newGIF := &gif.GIF{
+		LoopCount: g.LoopCount,
+		Delay:     make([]int, len(g.Image)),
+		Disposal:  make([]byte, len(g.Image)),
+	}
+
+	// Create a canvas to build up the frames
+	canvas := image.NewGray(g.Image[0].Bounds())
+
+	for i, srcImg := range g.Image {
+		// Start with a clean canvas if disposal method is 2 (RestoreBGColor)
+		if i > 0 && g.Disposal[i-1] == gif.DisposalBackground {
+			draw.Draw(canvas, canvas.Bounds(), image.Transparent, image.Point{}, draw.Src)
+		}
+
+		// Draw this frame onto the canvas
+		draw.Draw(canvas, srcImg.Bounds(), srcImg, srcImg.Bounds().Min, draw.Over)
+
+		// Create a new paletted image for this frame
+		palettedImage := image.NewPaletted(canvas.Bounds(), srcImg.Palette)
+		draw.Draw(palettedImage, palettedImage.Bounds(), convert(disp, canvas), image.Point{}, draw.Src)
+
+		// Add the new frame to our GIF
+		newGIF.Image = append(newGIF.Image, palettedImage)
+		newGIF.Delay[i] = g.Delay[i]
+		newGIF.Disposal[i] = gif.DisposalNone // Since each frame is now complete
+	}
+
+	return newGIF
 }
 
 // addLabel draws text onto the image at the specified coordinates.
@@ -182,39 +235,4 @@ func addLabel(img draw.Image, x, y int, label string) {
 		Dot:  fixed.Point26_6{X: fixed.I(x), Y: fixed.I(y + face.Metrics().Ascent.Ceil())},
 	}
 	d.DrawString(label)
-}
-
-func mirrorImage(img image.Image) image.Image {
-	bounds := img.Bounds()
-	mirrored := image.NewGray(bounds)
-	for y := 0; y < bounds.Dy(); y++ {
-		for x := 0; x < bounds.Dx(); x++ {
-			mirrored.Set(bounds.Dx()-x, y, img.At(x, y))
-		}
-	}
-	return mirrored
-}
-
-//nolint:revive
-func frameRateToFPS(rate types.FrameRate) int {
-	switch rate {
-	case types.FrameRate2:
-		return 2
-	case types.FrameRate3:
-		return 3
-	case types.FrameRate4:
-		return 4
-	case types.FrameRate5:
-		return 5
-	case types.FrameRate25:
-		return 25
-	case types.FrameRate64:
-		return 64
-	case types.FrameRate128:
-		return 128
-	case types.FrameRate256:
-		return 256
-	default:
-		return 25
-	}
 }

@@ -18,13 +18,13 @@ type OLEDMock struct {
 	ClearHandlerCalled             int
 	DrawImageHandler               func(img image.Image) error
 	DrawImageHandlerCalled         int
-	DrawGIFHandler                 func(gif *gif.GIF, fps int) error
+	DrawGIFHandler                 func(gif *gif.GIF) error
 	DrawGIFHandlerCalled           int
 	DrawTextHandler                func(text string, x, y int) error
 	DrawTextHandlerCalled          int
 	DrawImageWithTextHandler       func(img image.Image, x, y int, text string) error
 	DrawImageWithTextHandlerCalled int
-	DrawGIFWithTextHandler         func(gif *gif.GIF, rate types.FrameRate, x, y int, text string) error
+	DrawGIFWithTextHandler         func(gif *gif.GIF, x, y int, text string) error
 	DrawGIFWithTextHandlerCalled   int
 	ScrollHandler                  func(direction types.ScrollDirection, rate types.FrameRate, startLine, endLine int) error
 	ScrollHandlerCalled            int
@@ -52,9 +52,9 @@ func (m *OLEDMock) DrawImage(img image.Image) error {
 	return m.DrawImageHandler(img)
 }
 
-func (m *OLEDMock) DrawGIF(gif *gif.GIF, fps int) error {
+func (m *OLEDMock) DrawGIF(gif *gif.GIF) error {
 	m.DrawGIFHandlerCalled++
-	return m.DrawGIFHandler(gif, fps)
+	return m.DrawGIFHandler(gif)
 }
 
 func (m *OLEDMock) DrawText(text string, x, y int) error {
@@ -67,9 +67,9 @@ func (m *OLEDMock) DrawImageWithText(img image.Image, x, y int, text string) err
 	return m.DrawImageWithTextHandler(img, x, y, text)
 }
 
-func (m *OLEDMock) DrawGIFWithText(gif *gif.GIF, rate types.FrameRate, x, y int, text string) error {
+func (m *OLEDMock) DrawGIFWithText(gif *gif.GIF, x, y int, text string) error {
 	m.DrawGIFWithTextHandlerCalled++
-	return m.DrawGIFWithTextHandler(gif, rate, x, y, text)
+	return m.DrawGIFWithTextHandler(gif, x, y, text)
 }
 
 func (m *OLEDMock) Scroll(direction types.ScrollDirection, rate types.FrameRate, startLine, endLine int) error {
