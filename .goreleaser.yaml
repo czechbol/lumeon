@@ -19,7 +19,11 @@ builds:
     flags:
       - -trimpath
     ldflags:
-      - -w -s -X "github.com/czechbol/lumeon/app.gitCommit={{ .FullCommit }}" -X "github.com/czechbol/lumeon/app.version=v{{ .Version }}" -X "github.com/czechbol/lumeon/app.buildDate={{ .Date }}"
+      - -w
+      - -s
+      - -X "github.com/czechbol/lumeon/app.gitCommit={{ .FullCommit }}"
+      - -X "github.com/czechbol/lumeon/app.version=v{{ .Version }}"
+      - -X "github.com/czechbol/lumeon/app.buildDate={{ .Date }}"
     goos:
       - linux
     goarch:
@@ -32,7 +36,7 @@ upx:
   - enabled: true
 
 nfpms:
-  - id: lumeond
+  - id: lumeon
     builds:
       - build
 
@@ -61,7 +65,7 @@ nfpms:
 
     conflicts:
       - argon-config
-      - neond
+      - neon
 
     bindir: /usr/bin
 
@@ -99,7 +103,7 @@ nfpms:
         - /usr/bin
 
 archives:
-  - id: lumeond
+  - id: lumeon
     builds:
       - 'build'
     files:
