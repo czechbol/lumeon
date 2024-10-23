@@ -8,6 +8,7 @@ import (
 
 	"github.com/czechbol/lumeon/app/config"
 	"github.com/czechbol/lumeon/core/hardware"
+	"github.com/czechbol/lumeon/core/resources"
 )
 
 type FanService interface {
@@ -20,15 +21,15 @@ type fanServiceImpl struct {
 	mutex        sync.RWMutex
 	running      bool
 	fan          hardware.Fan
-	cpu          hardware.CPU
-	drives       hardware.HDD
+	cpu          resources.CPU
+	drives       resources.HDD
 	fanConfig    config.FanConfig
 	ctx          context.Context
 	cancel       context.CancelFunc
 	shutdownChan chan struct{}
 }
 
-func NewFanService(fan hardware.Fan, cpu hardware.CPU, drives hardware.HDD, fanConfig config.FanConfig) FanService {
+func NewFanService(fan hardware.Fan, cpu resources.CPU, drives resources.HDD, fanConfig config.FanConfig) FanService {
 	return &fanServiceImpl{
 		fan:          fan,
 		cpu:          cpu,

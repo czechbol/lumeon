@@ -1,4 +1,4 @@
-package hardware
+package resources
 
 import (
 	"encoding/json"
@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/czechbol/lumeon/core/hardware/dto"
+	"github.com/czechbol/lumeon/core/resources/dto"
 )
 
 type HDD interface {

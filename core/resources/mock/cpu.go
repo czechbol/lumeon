@@ -1,6 +1,6 @@
 package mock
 
-import "github.com/czechbol/lumeon/core/hardware"
+import "github.com/czechbol/lumeon/core/resources"
 
 // CPUMock defines mocks for CPU.
 type CPUMock struct {
@@ -8,7 +8,7 @@ type CPUMock struct {
 	GetAverageTempHandlerCalled int
 }
 
-var _ hardware.CPU = (*CPUMock)(nil)
+var _ resources.CPU = (*CPUMock)(nil)
 
 func (m *CPUMock) GetAverageTemp() (float64, error) {
 	m.GetAverageTempHandlerCalled++

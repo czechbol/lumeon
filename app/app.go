@@ -17,6 +17,7 @@ import (
 	"github.com/czechbol/lumeon/core"
 	"github.com/czechbol/lumeon/core/hardware"
 	"github.com/czechbol/lumeon/core/hardware/i2c"
+	"github.com/czechbol/lumeon/core/resources"
 	"gitlab.com/greyxor/slogor"
 )
 
@@ -74,8 +75,8 @@ func (app *CoreApp) Init() {
 	app.coreServices = &core.CoreServices{
 		FanService: core.NewFanService(
 			hardware.NewFan(i2cBus),
-			hardware.NewCPU(),
-			hardware.NewHDD(),
+			resources.NewCPU(),
+			resources.NewHDD(),
 			app.config.FanConfig(),
 		),
 	}

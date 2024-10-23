@@ -1,6 +1,6 @@
 package mock
 
-import "github.com/czechbol/lumeon/core/hardware"
+import "github.com/czechbol/lumeon/core/resources"
 
 // HDDMock defines mocks for HDD.
 type HDDMock struct {
@@ -8,7 +8,7 @@ type HDDMock struct {
 	GetAverageTempHandlerCalled int
 }
 
-var _ hardware.HDD = (*HDDMock)(nil)
+var _ resources.HDD = (*HDDMock)(nil)
 
 func (m *HDDMock) GetAverageTemp() (float64, error) {
 	m.GetAverageTempHandlerCalled++
