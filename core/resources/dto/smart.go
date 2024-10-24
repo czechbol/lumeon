@@ -64,13 +64,91 @@ type Temperature struct {
 	Current int `json:"current"`
 }
 
+type WWN struct {
+	Naa int `json:"naa"`
+	Oui int `json:"oui"`
+	ID  int `json:"id"`
+}
+
+type UserCapacity struct {
+	Blocks uint64 `json:"blocks"`
+	Bytes  uint64 `json:"bytes"`
+}
+
+type FormFactor struct {
+	AtaValue int    `json:"ata_value"`
+	Name     string `json:"name"`
+}
+
+type AtaVersion struct {
+	String     string `json:"string"`
+	MajorValue int    `json:"major_value"`
+	MinorValue int    `json:"minor_value"`
+}
+
+type SataVersion struct {
+	String string `json:"string"`
+	Value  int    `json:"value"`
+}
+
+type InterfaceSpeed struct {
+	Max struct {
+		SataValue      int    `json:"sata_value"`
+		String         string `json:"string"`
+		UnitsPerSecond int    `json:"units_per_second"`
+		BitsPerUnit    int    `json:"bits_per_unit"`
+	} `json:"max"`
+	Current struct {
+		SataValue      int    `json:"sata_value"`
+		String         string `json:"string"`
+		UnitsPerSecond int    `json:"units_per_second"`
+		BitsPerUnit    int    `json:"bits_per_unit"`
+	} `json:"current"`
+}
+
+type SmartSupport struct {
+	Available bool `json:"available"`
+	Enabled   bool `json:"enabled"`
+}
+
+type SmartStatus struct {
+	Passed bool `json:"passed"`
+}
+
+type AtaSmartErrorLog struct {
+	Summary struct {
+		Revision int `json:"revision"`
+		Count    int `json:"count"`
+	} `json:"summary"`
+}
+
 type SmartctlOutput struct {
-	JSONFormatVersion  []int              `json:"json_format_version"`
-	Smartctl           Smartctl           `json:"smartctl"`
-	LocalTime          LocalTime          `json:"local_time"`
-	Device             Device             `json:"device"`
+	JSONFormatVersion []int        `json:"json_format_version"`
+	Smartctl          Smartctl     `json:"smartctl"`
+	LocalTime         LocalTime    `json:"local_time"`
+	Device            Device       `json:"device"`
+	ModelFamily       string       `json:"model_family"`
+	ModelName         string       `json:"model_name"`
+	SerialNumber      string       `json:"serial_number"`
+	WWN               WWN          `json:"wwn"`
+	FirmwareVersion   string       `json:"firmware_version"`
+	UserCapacity      UserCapacity `json:"user_capacity"`
+	LogicalBlockSize  int          `json:"logical_block_size"`
+	PhysicalBlockSize int          `json:"physical_block_size"`
+	RotationRate      int          `json:"rotation_rate"`
+	FormFactor        FormFactor   `json:"form_factor"`
+	Trim              struct {
+		Supported bool `json:"supported"`
+	} `json:"trim"`
+	InSmartctlDatabase bool               `json:"in_smartctl_database"`
+	AtaVersion         AtaVersion         `json:"ata_version"`
+	SataVersion        SataVersion        `json:"sata_version"`
+	InterfaceSpeed     InterfaceSpeed     `json:"interface_speed"`
+	SmartSupport       SmartSupport       `json:"smart_support"`
+	SmartStatus        SmartStatus        `json:"smart_status"`
 	AtaSmartAttributes AtaSmartAttributes `json:"ata_smart_attributes"`
 	PowerOnTime        PowerOnTime        `json:"power_on_time"`
 	PowerCycleCount    int                `json:"power_cycle_count"`
 	Temperature        Temperature        `json:"temperature"`
+	AtaSmartErrorLog   AtaSmartErrorLog   `json:"ata_smart_error_log"`
 }
