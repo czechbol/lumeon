@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/shirou/gopsutil/cpu"
 )
@@ -107,7 +108,7 @@ func readTemperature(path string) (float64, error) {
 
 // GetStats returns comprehensive CPU statistics
 func (c *cpuImpl) GetStats() (*CPUStats, error) {
-	percentages, err := cpu.Percent(0, true)
+	percentages, err := cpu.Percent(time.Second*5, true)
 	if err != nil {
 		return nil, err
 	}
