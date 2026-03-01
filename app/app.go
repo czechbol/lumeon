@@ -78,16 +78,10 @@ func (app *CoreApp) Init() {
 		os.Exit(1)
 	}
 
-	button, err := hardware.NewButton()
-	if err != nil {
-		slog.Error("failed to initialize button", "error", err)
-		os.Exit(1)
-	}
-
 	cpu := resources.NewCPU()
 	drives := resources.NewHDD()
 
-	app.coreServices = &core.CoreServices{
+	services := &core.CoreServices{
 		FanService: core.NewFanService(
 			hardware.NewFan(i2cBus),
 			cpu,
@@ -102,11 +96,16 @@ func (app *CoreApp) Init() {
 			drives,
 			app.config.DisplayConfig(),
 		),
-		ButtonService: core.NewButtonService(
-			button,
-			hardware.NewSystem(i2cBus),
-		),
 	}
+
+	button, err := hardware.NewButton()
+	if err != nil {
+		slog.Warn("button not available, skipping button service", "error", err)
+	} else {
+		services.ButtonService = core.NewButtonService(button, hardware.NewSystem(i2cBus))
+	}
+
+	app.coreServices = services
 }
 
 // Run the App.
@@ -117,8 +116,10 @@ func (app *CoreApp) Run(ctx context.Context) error {
 	if err := app.coreServices.DisplayService.Start(ctx); err != nil {
 		return err
 	}
-	if err := app.coreServices.ButtonService.Start(ctx); err != nil {
-		return err
+	if app.coreServices.ButtonService != nil {
+		if err := app.coreServices.ButtonService.Start(ctx); err != nil {
+			return err
+		}
 	}
 
 	<-ctx.Done()
@@ -141,9 +142,11 @@ func (app *CoreApp) Shutdown(ctx context.Context) error {
 		slog.Error("failed to stop display service", "error", err)
 	}
 
-	slog.Info("stopping button service")
-	if err := app.coreServices.ButtonService.Shutdown(ctx); err != nil {
-		slog.Error("failed to stop button service", "error", err)
+	if app.coreServices.ButtonService != nil {
+		slog.Info("stopping button service")
+		if err := app.coreServices.ButtonService.Shutdown(ctx); err != nil {
+			slog.Error("failed to stop button service", "error", err)
+		}
 	}
 
 	return nil
