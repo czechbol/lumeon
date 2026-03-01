@@ -1,5 +1,7 @@
 package core
 
 type CoreServices struct {
-	FanService FanService
+	FanService     FanService
+	DisplayService DisplayService
+	ButtonService  ButtonService
 }

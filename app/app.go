@@ -72,28 +72,56 @@ func (app *CoreApp) Init() {
 		os.Exit(1)
 	}
 
+	oled, err := hardware.NewOLED(i2cBus)
+	if err != nil {
+		slog.Error("failed to initialize OLED display", "error", err)
+		os.Exit(1)
+	}
+
+	button, err := hardware.NewButton()
+	if err != nil {
+		slog.Error("failed to initialize button", "error", err)
+		os.Exit(1)
+	}
+
+	cpu := resources.NewCPU()
+	drives := resources.NewHDD()
+
 	app.coreServices = &core.CoreServices{
 		FanService: core.NewFanService(
 			hardware.NewFan(i2cBus),
-			resources.NewCPU(),
-			resources.NewHDD(),
+			cpu,
+			drives,
 			app.config.FanConfig(),
+		),
+		DisplayService: core.NewDisplayService(
+			oled,
+			cpu,
+			resources.NewMemory(),
+			resources.NewNetwork(),
+			drives,
+			app.config.DisplayConfig(),
+		),
+		ButtonService: core.NewButtonService(
+			button,
+			hardware.NewSystem(i2cBus),
 		),
 	}
 }
 
 // Run the App.
 func (app *CoreApp) Run(ctx context.Context) error {
-	err := app.coreServices.FanService.Start(ctx)
-	if err != nil {
+	if err := app.coreServices.FanService.Start(ctx); err != nil {
+		return err
+	}
+	if err := app.coreServices.DisplayService.Start(ctx); err != nil {
+		return err
+	}
+	if err := app.coreServices.ButtonService.Start(ctx); err != nil {
 		return err
 	}
 
-	// Create a channel to signal when to stop
-	stopChan := make(chan struct{})
-
-	// Wait for a signal to stop
-	<-stopChan
+	<-ctx.Done()
 
 	return nil
 }
@@ -106,6 +134,16 @@ func (app *CoreApp) Shutdown(ctx context.Context) error {
 	slog.Info("stopping fan loop")
 	if err := app.coreServices.FanService.Shutdown(ctx); err != nil {
 		slog.Error("failed to stop fan loop", "error", err)
+	}
+
+	slog.Info("stopping display service")
+	if err := app.coreServices.DisplayService.Shutdown(ctx); err != nil {
+		slog.Error("failed to stop display service", "error", err)
+	}
+
+	slog.Info("stopping button service")
+	if err := app.coreServices.ButtonService.Shutdown(ctx); err != nil {
+		slog.Error("failed to stop button service", "error", err)
 	}
 
 	return nil
