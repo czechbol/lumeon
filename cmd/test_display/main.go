@@ -29,11 +29,10 @@ func main() {
 	flag.Parse()
 
 	// Initialize logger
-	logger := slog.New(slogor.NewHandler(os.Stderr, slogor.Options{
-		TimeFormat: "2006-01-02 15:04:05.000",
-		Level:      slog.LevelDebug,
-		ShowSource: false,
-	}))
+	logger := slog.New(slogor.NewHandler(os.Stderr,
+		slogor.SetTimeFormat("2006-01-02 15:04:05.000"),
+		slogor.SetLevel(slog.LevelDebug),
+	))
 	slog.SetDefault(logger)
 
 	// Generate test images

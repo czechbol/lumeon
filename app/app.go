@@ -52,11 +52,10 @@ func NewApp(config config.Config) *CoreApp {
 // Init initializes the App.
 func (app *CoreApp) Init() {
 	// set logger
-	logger := slog.New(slogor.NewHandler(os.Stderr, slogor.Options{
-		TimeFormat: "2006-01-02 15:04:05.000",
-		Level:      app.config.LogLevel(),
-		ShowSource: false,
-	}))
+	logger := slog.New(slogor.NewHandler(os.Stderr,
+		slogor.SetTimeFormat("2006-01-02 15:04:05.000"),
+		slogor.SetLevel(app.config.LogLevel()),
+	))
 
 	slog.SetDefault(logger)
 
