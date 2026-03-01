@@ -203,28 +203,28 @@ func populateSMART(stats *HDDStats, deviceInfo *dto.SmartctlOutput) {
 	reallocSectorsAttr := getSMARTAttribute(deviceInfo, AttrReallocatedSectors)
 	reallocatedSectors := 0
 	if reallocSectorsAttr != nil {
-		reallocatedSectors = reallocSectorsAttr.Raw.Value
+		reallocatedSectors = int(reallocSectorsAttr.Raw.Value)
 	}
 
 	uncorrSecAttr := getSMARTAttribute(deviceInfo, AttrUncorrectableSectors)
 	uncorrectableSectors := 0
 	if uncorrSecAttr != nil {
-		uncorrectableSectors = uncorrSecAttr.Raw.Value
+		uncorrectableSectors = int(uncorrSecAttr.Raw.Value)
 	}
 
 	pendingSectorsAttr := getSMARTAttribute(deviceInfo, AttrPendingSectors)
 	pendingSectors := 0
 	if pendingSectorsAttr != nil {
-		pendingSectors = pendingSectorsAttr.Raw.Value
+		pendingSectors = int(pendingSectorsAttr.Raw.Value)
 	}
 
 	lbaWrittenAttr := getSMARTAttribute(deviceInfo, AttrTotalLBAWritten)
-	lbaWritten := 0
+	lbaWritten := int64(0)
 	if lbaWrittenAttr != nil {
 		lbaWritten = lbaWrittenAttr.Raw.Value
 	}
 
-	tbw := lbaWritten * deviceInfo.LogicalBlockSize / 1_000_000_000_000
+	tbw := int(lbaWritten * int64(deviceInfo.LogicalBlockSize) / 1_000_000_000_000)
 
 	stats.SmartStatus = SmartStatus{
 		HealthOK:            deviceInfo.SmartStatus.Passed,

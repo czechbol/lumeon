@@ -36,7 +36,7 @@ type Flags struct {
 }
 
 type Raw struct {
-	Value  int    `json:"value"`
+	Value  int64  `json:"value"`
 	String string `json:"string"`
 }
 
