@@ -26,6 +26,7 @@ type OLED interface {
 	DrawImage(img image.Image) error
 	DrawGIF(gif *gif.GIF) error
 	DrawText(text string, x, y int) error
+	DrawLines(lines []string) error
 	DrawImageWithText(img image.Image, x, y int, text string) error
 	DrawGIFWithText(gif *gif.GIF, x, y int, text string) error
 	Scroll(direction types.ScrollDirection, rate types.FrameRate, startLine, endLine int) error
@@ -45,7 +46,6 @@ func NewOLED(i2cBus i2c.I2CBus) (*oledI2cImpl, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return &oledI2cImpl{dev: dev}, nil
 }
 
@@ -80,7 +80,7 @@ func (o *oledI2cImpl) DrawGIF(gif *gif.GIF) error {
 	slog.Debug("Drawing GIF")
 	for i := 0; gif.LoopCount <= 0 || i < gif.LoopCount*len(gif.Image); i++ {
 		index := i % len(gif.Image)
-		c := time.After(time.Duration(10*gif.Delay[index]) * time.Millisecond)
+		c := time.After(time.Duration(10*convertedGIF.Delay[index]) * time.Millisecond)
 		img := convertedGIF.Image[index]
 		err := o.dev.Draw(o.dev.Bounds(), img, image.Point{})
 		if err != nil {
@@ -96,6 +96,16 @@ func (o *oledI2cImpl) DrawText(text string, x, y int) error {
 	img := image1bit.NewVerticalLSB(o.dev.Bounds())
 	addLabel(img, x, y, text)
 
+	return o.dev.Draw(o.dev.Bounds(), img, image.Point{})
+}
+
+func (o *oledI2cImpl) DrawLines(lines []string) error {
+	slog.Debug("Drawing lines", "count", len(lines))
+	img := image1bit.NewVerticalLSB(o.dev.Bounds())
+	const lineHeight = 13
+	for i, line := range lines {
+		addLabel(img, 0, lineHeight*i, line)
+	}
 	return o.dev.Draw(o.dev.Bounds(), img, image.Point{})
 }
 
@@ -195,7 +205,7 @@ func convertGIF(disp display.Drawer, g *gif.GIF) *gif.GIF {
 
 	for i, srcImg := range g.Image {
 		// Start with a clean canvas if disposal method is 2 (RestoreBGColor)
-		if i > 0 && g.Disposal[i-1] == gif.DisposalBackground {
+		if i > 0 && i-1 < len(g.Disposal) && g.Disposal[i-1] == gif.DisposalBackground {
 			draw.Draw(canvas, canvas.Bounds(), image.Transparent, image.Point{}, draw.Src)
 		}
 
@@ -208,7 +218,9 @@ func convertGIF(disp display.Drawer, g *gif.GIF) *gif.GIF {
 
 		// Add the new frame to our GIF
 		newGIF.Image = append(newGIF.Image, palettedImage)
-		newGIF.Delay[i] = g.Delay[i]
+		if i < len(g.Delay) {
+			newGIF.Delay[i] = g.Delay[i]
+		}
 		newGIF.Disposal[i] = gif.DisposalNone // Since each frame is now complete
 	}
 

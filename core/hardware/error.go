@@ -13,4 +13,7 @@ var (
 	ErrInvalidMemoryMode       = errors.New("invalid memory mode")
 	ErrInvalidPageStart        = errors.New("invalid page start address")
 	ErrInvalidHorizontalOffset = errors.New("invalid horizontal offset")
+
+	// Button related errors.
+	ErrButtonPinNotFound = errors.New("button GPIO pin not found")
 )

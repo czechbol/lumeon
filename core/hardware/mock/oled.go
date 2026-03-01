@@ -22,6 +22,8 @@ type OLEDMock struct {
 	DrawGIFHandlerCalled           int
 	DrawTextHandler                func(text string, x, y int) error
 	DrawTextHandlerCalled          int
+	DrawLinesHandler               func(lines []string) error
+	DrawLinesHandlerCalled         int
 	DrawImageWithTextHandler       func(img image.Image, x, y int, text string) error
 	DrawImageWithTextHandlerCalled int
 	DrawGIFWithTextHandler         func(gif *gif.GIF, x, y int, text string) error
@@ -60,6 +62,11 @@ func (m *OLEDMock) DrawGIF(gif *gif.GIF) error {
 func (m *OLEDMock) DrawText(text string, x, y int) error {
 	m.DrawTextHandlerCalled++
 	return m.DrawTextHandler(text, x, y)
+}
+
+func (m *OLEDMock) DrawLines(lines []string) error {
+	m.DrawLinesHandlerCalled++
+	return m.DrawLinesHandler(lines)
 }
 
 func (m *OLEDMock) DrawImageWithText(img image.Image, x, y int, text string) error {

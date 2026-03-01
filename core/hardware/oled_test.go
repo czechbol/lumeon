@@ -2,6 +2,7 @@ package hardware
 
 import (
 	"image"
+	"image/color"
 	"image/gif"
 	"testing"
 
@@ -69,12 +70,15 @@ func (s *OLEDTestSuite) TestDrawImage() {
 }
 
 func (s *OLEDTestSuite) TestDrawGIF() {
+	palette := color.Palette{color.Black, color.White}
 	g := &gif.GIF{
 		Image: []*image.Paletted{
-			image.NewPaletted(image.Rect(0, 0, 128, 64), nil),
-			image.NewPaletted(image.Rect(0, 0, 128, 64), nil),
+			image.NewPaletted(image.Rect(0, 0, 128, 64), palette),
+			image.NewPaletted(image.Rect(0, 0, 128, 64), palette),
 		},
-		Delay: []int{10},
+		Delay:     []int{0, 0},
+		Disposal:  []byte{gif.DisposalNone, gif.DisposalNone},
+		LoopCount: 1,
 	}
 
 	err := s.oled.DrawGIF(g)
@@ -93,11 +97,14 @@ func (s *OLEDTestSuite) TestDrawImageWithText() {
 }
 
 func (s *OLEDTestSuite) TestDrawGIFWithText() {
+	palette := color.Palette{color.Black, color.White}
 	g := &gif.GIF{
 		Image: []*image.Paletted{
-			image.NewPaletted(image.Rect(0, 0, 128, 64), nil),
+			image.NewPaletted(image.Rect(0, 0, 128, 64), palette),
 		},
-		Delay: []int{10},
+		Delay:     []int{0},
+		Disposal:  []byte{gif.DisposalNone},
+		LoopCount: 1,
 	}
 
 	err := s.oled.DrawGIFWithText(g, 0, 0, "Hello")
@@ -105,7 +112,7 @@ func (s *OLEDTestSuite) TestDrawGIFWithText() {
 }
 
 func (s *OLEDTestSuite) TestScroll() {
-	err := s.oled.Scroll(types.ScrollRight, types.FrameRate5, 0, 63)
+	err := s.oled.Scroll(types.ScrollRight, types.FrameRate5, 0, -1)
 	s.NoError(err)
 }
 
