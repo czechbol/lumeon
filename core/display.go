@@ -1,9 +1,13 @@
 package core
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"image"
+	_ "image/png"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -170,10 +174,16 @@ func (ds *displayServiceImpl) displayLoop() {
 
 			if wasSleeping {
 				slog.Info("display waking up")
-				if err := ds.renderPage(page); err != nil {
-					slog.Error("failed to render display page on wake", "page", page, "error", err)
+				if err := ds.renderSplash(); err != nil {
+					slog.Error("failed to render splash on wake", "error", err)
 				}
-				page = (page + 1) % displayPageCount
+				// Reset ticker so the splash is visible for a full interval
+				// before data pages begin rendering.
+				ticker.Reset(ds.displayConfig.Interval())
+				select {
+				case <-ticker.C:
+				default:
+				}
 			}
 		}
 	}
@@ -240,7 +250,9 @@ func (ds *displayServiceImpl) renderNetworkPage() error {
 
 	lines := make([]string, 0, displayPageCount)
 	for iface, stat := range allStats {
-		if iface == "lo" {
+		if iface == "lo" ||
+			strings.HasPrefix(iface, "veth") ||
+			strings.HasPrefix(iface, "br-") {
 			continue
 		}
 		rxMB := stat.ReceiveSpeed / bytesPerMB
@@ -275,4 +287,13 @@ func (ds *displayServiceImpl) renderHDDPage() error {
 	}
 
 	return ds.oled.DrawLines(lines)
+}
+
+// renderSplash draws the embedded pixel-art logo onto the display.
+func (ds *displayServiceImpl) renderSplash() error {
+	img, _, err := image.Decode(bytes.NewReader(splashPNG))
+	if err != nil {
+		return fmt.Errorf("decoding splash image: %w", err)
+	}
+	return ds.oled.DrawImage(img)
 }
