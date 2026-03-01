@@ -106,7 +106,7 @@ func readTemperature(path string) (float64, error) {
 	return temp / 1000.0, nil
 }
 
-// GetStats returns comprehensive CPU statistics
+// GetStats returns comprehensive CPU statistics.
 func (c *cpuImpl) GetStats() (*CPUStats, error) {
 	percentages, err := cpu.Percent(time.Second*5, true)
 	if err != nil {

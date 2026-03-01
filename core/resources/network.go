@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// Network monitoring
+// Network monitoring.
 type NetworkStats struct {
 	Interface       string
 	BytesReceived   uint64

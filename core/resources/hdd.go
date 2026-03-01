@@ -141,7 +141,7 @@ func getDeviceSMARTInfo(device *dto.BlockDevice) (*dto.SmartctlOutput, error) {
 		"--nocheck=standby",
 		"--format=brief",
 		"--log=error",
-	) //nolint:gosec
+	)
 	output, err := cmd.Output()
 	if err != nil {
 		slog.Error("error executing smartctl for device", "device", device, "error", err)
@@ -235,7 +235,6 @@ func populateSMART(stats *HDDStats, deviceInfo *dto.SmartctlOutput) {
 		PendingSectors:      pendingSectors,
 		TerabytesWritten:    tbw,
 	}
-
 }
 
 func getSMARTAttribute(deviceInfo *dto.SmartctlOutput, id int) *dto.Attribute {
@@ -267,7 +266,6 @@ func populatePartitions(device *dto.BlockDevice) []Partition {
 		}
 
 		partitions = append(partitions, partition)
-
 	}
 
 	return partitions

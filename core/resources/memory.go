@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// Memory monitoring
+// Memory monitoring.
 type MemoryStats struct {
 	Total        uint64
 	Used         uint64

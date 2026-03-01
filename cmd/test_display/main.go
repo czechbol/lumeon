@@ -254,7 +254,7 @@ func saveJPEG(img image.Image, filename string) error {
 
 func saveGIFFrames(gif *gif.GIF) {
 	// create the frames directory
-	//nolint:revive
+
 	if err := os.Mkdir("frames", 0755); err != nil {
 		slog.Error("failed to create frames directory", "error", err)
 	}
