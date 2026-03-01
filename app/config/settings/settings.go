@@ -5,6 +5,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"time"
 
 	"github.com/czechbol/lumeon/app/config"
 	"github.com/spf13/pflag"
@@ -13,8 +14,9 @@ import (
 
 // Settings is the struct that holds the configuration for the application.
 type Settings struct {
-	LogLevel    string
-	FanSettings FanSettings
+	LogLevel        string
+	FanSettings     FanSettings
+	DisplaySettings DisplaySettings
 }
 
 // FanSettings is the struct that holds the configuration for the fan.
@@ -22,6 +24,12 @@ type FanSettings struct {
 	Enabled  bool
 	CPUCurve map[uint8]uint8
 	HDDCurve map[uint8]uint8
+}
+
+// DisplaySettings is the struct that holds the configuration for the OLED display.
+type DisplaySettings struct {
+	Enabled  bool
+	Interval int // seconds per page
 }
 
 func init() {
@@ -57,12 +65,21 @@ func GetConfig() config.Config {
 		}
 	}
 
+	displayInterval := viper.GetInt("display.interval")
+	if displayInterval <= 0 {
+		displayInterval = 5
+	}
+
 	return config.NewConfig(
 		convertLogLevel(logLevel),
 		config.NewFanConfig(
 			viper.GetBool("fan.enabled"),
 			stringMapStringToPointSlice(viper.GetStringMapString("fan.cpuCurve")),
 			stringMapStringToPointSlice(viper.GetStringMapString("fan.hddCurve")),
+		),
+		config.NewDisplayConfig(
+			viper.GetBool("display.enabled"),
+			time.Duration(displayInterval)*time.Second,
 		),
 	)
 }

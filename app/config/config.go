@@ -1,21 +1,27 @@
 package config
 
-import "log/slog"
+import (
+	"log/slog"
+	"time"
+)
 
 type Config interface {
 	LogLevel() slog.Level
 	FanConfig() FanConfig
+	DisplayConfig() DisplayConfig
 }
 
 type configImpl struct {
-	logLevel  slog.Level
-	fanConfig FanConfig
+	logLevel      slog.Level
+	fanConfig     FanConfig
+	displayConfig DisplayConfig
 }
 
-func NewConfig(logLevel slog.Level, fanConfig FanConfig) Config {
+func NewConfig(logLevel slog.Level, fanConfig FanConfig, displayConfig DisplayConfig) Config {
 	return &configImpl{
-		logLevel:  logLevel,
-		fanConfig: fanConfig,
+		logLevel:      logLevel,
+		fanConfig:     fanConfig,
+		displayConfig: displayConfig,
 	}
 }
 
@@ -25,6 +31,35 @@ func (c *configImpl) LogLevel() slog.Level {
 
 func (c *configImpl) FanConfig() FanConfig {
 	return c.fanConfig
+}
+
+func (c *configImpl) DisplayConfig() DisplayConfig {
+	return c.displayConfig
+}
+
+type DisplayConfig interface {
+	Enabled() bool
+	Interval() time.Duration
+}
+
+type displayConfigImpl struct {
+	enabled  bool
+	interval time.Duration
+}
+
+func NewDisplayConfig(enabled bool, interval time.Duration) DisplayConfig {
+	return &displayConfigImpl{
+		enabled:  enabled,
+		interval: interval,
+	}
+}
+
+func (d *displayConfigImpl) Enabled() bool {
+	return d.enabled
+}
+
+func (d *displayConfigImpl) Interval() time.Duration {
+	return d.interval
 }
 
 type FanConfig interface {
