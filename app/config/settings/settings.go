@@ -54,15 +54,11 @@ func GetConfig() config.Config {
 	logLevel := viper.GetString("logLevel")
 
 	// Override log level if verbosity flag is set
-	switch *verbosityFlag {
-	case 1:
-		logLevel = "warn"
-	case 2:
+	switch {
+	case *verbosityFlag == 1:
 		logLevel = "info"
-	default:
-		if *verbosityFlag > 2 {
-			logLevel = "debug"
-		}
+	case *verbosityFlag > 1:
+		logLevel = "debug"
 	}
 
 	displayInterval := viper.GetInt("display.interval")
