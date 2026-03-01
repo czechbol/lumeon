@@ -86,11 +86,8 @@ func (bs *buttonServiceImpl) buttonLoop() {
 			continue
 		}
 
-		switch event {
-		case hardware.ButtonDoubleTap:
-			slog.Info("button double tap detected")
-		case hardware.ButtonShutdown:
-			slog.Warn("button shutdown press detected, halting system")
+		if event == hardware.ButtonPress {
+			slog.Warn("button press detected, halting system")
 			if err := bs.system.Halt(); err != nil {
 				slog.Error("failed to halt system", "error", err)
 			}
