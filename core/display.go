@@ -13,19 +13,22 @@ import (
 )
 
 const (
-	displayPageCount = 4
-	bytesPerMB       = 1 << 20
+	displayPageCount    = 4
+	bytesPerMB          = 1 << 20
+	displaySleepTimeout = 2 * time.Minute
 )
 
 type DisplayService interface {
 	IsRunning() bool
 	Start(ctx context.Context) error
 	Shutdown(ctx context.Context) error
+	Wake()
 }
 
 type displayServiceImpl struct {
 	mutex         sync.RWMutex
 	running       bool
+	sleeping      bool
 	oled          hardware.OLED
 	cpu           resources.CPU
 	mem           resources.Memory
@@ -35,6 +38,7 @@ type displayServiceImpl struct {
 	ctx           context.Context
 	cancel        context.CancelFunc
 	shutdownChan  chan struct{}
+	wakeChan      chan struct{}
 }
 
 func NewDisplayService(
@@ -53,6 +57,14 @@ func NewDisplayService(
 		drives:        drives,
 		displayConfig: displayConfig,
 		shutdownChan:  make(chan struct{}),
+		wakeChan:      make(chan struct{}, 1),
+	}
+}
+
+func (ds *displayServiceImpl) Wake() {
+	select {
+	case ds.wakeChan <- struct{}{}:
+	default:
 	}
 }
 
@@ -107,18 +119,62 @@ func (ds *displayServiceImpl) displayLoop() {
 	ticker := time.NewTicker(ds.displayConfig.Interval())
 	defer ticker.Stop()
 
-	for {
-		if err := ds.renderPage(page); err != nil {
-			slog.Error("failed to render display page", "page", page, "error", err)
-		}
-		page = (page + 1) % displayPageCount
+	sleepTimer := time.NewTimer(displaySleepTimeout)
+	defer sleepTimer.Stop()
 
+	// Render first page immediately
+	if err := ds.renderPage(page); err != nil {
+		slog.Error("failed to render display page", "page", page, "error", err)
+	}
+	page = (page + 1) % displayPageCount
+
+	for {
 		select {
 		case <-ds.ctx.Done():
 			slog.Info("stopping display loop due to context cancellation")
 			return
+
 		case <-ticker.C:
-			// Continue to the next page
+			ds.mutex.RLock()
+			sleeping := ds.sleeping
+			ds.mutex.RUnlock()
+			if !sleeping {
+				if err := ds.renderPage(page); err != nil {
+					slog.Error("failed to render display page", "page", page, "error", err)
+				}
+				page = (page + 1) % displayPageCount
+			}
+
+		case <-sleepTimer.C:
+			slog.Info("display going to sleep")
+			ds.mutex.Lock()
+			ds.sleeping = true
+			ds.mutex.Unlock()
+			if err := ds.oled.Clear(); err != nil {
+				slog.Error("failed to clear display for sleep", "error", err)
+			}
+
+		case <-ds.wakeChan:
+			ds.mutex.Lock()
+			wasSleeping := ds.sleeping
+			ds.sleeping = false
+			ds.mutex.Unlock()
+
+			if !sleepTimer.Stop() {
+				select {
+				case <-sleepTimer.C:
+				default:
+				}
+			}
+			sleepTimer.Reset(displaySleepTimeout)
+
+			if wasSleeping {
+				slog.Info("display waking up")
+				if err := ds.renderPage(page); err != nil {
+					slog.Error("failed to render display page on wake", "page", page, "error", err)
+				}
+				page = (page + 1) % displayPageCount
+			}
 		}
 	}
 }

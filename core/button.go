@@ -18,16 +18,16 @@ type buttonServiceImpl struct {
 	mutex        sync.RWMutex
 	running      bool
 	button       hardware.Button
-	system       hardware.System
+	display      DisplayService
 	ctx          context.Context
 	cancel       context.CancelFunc
 	shutdownChan chan struct{}
 }
 
-func NewButtonService(button hardware.Button, system hardware.System) ButtonService {
+func NewButtonService(button hardware.Button, display DisplayService) ButtonService {
 	return &buttonServiceImpl{
 		button:       button,
-		system:       system,
+		display:      display,
 		shutdownChan: make(chan struct{}),
 	}
 }
@@ -87,10 +87,8 @@ func (bs *buttonServiceImpl) buttonLoop() {
 		}
 
 		if event == hardware.ButtonPress {
-			slog.Warn("button press detected, halting system")
-			if err := bs.system.Halt(); err != nil {
-				slog.Error("failed to halt system", "error", err)
-			}
+			slog.Info("button press detected, waking display")
+			bs.display.Wake()
 		}
 	}
 }

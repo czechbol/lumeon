@@ -102,7 +102,7 @@ func (app *CoreApp) Init() {
 	if err != nil {
 		slog.Warn("button not available, skipping button service", "error", err)
 	} else {
-		services.ButtonService = core.NewButtonService(button, hardware.NewSystem(i2cBus))
+		services.ButtonService = core.NewButtonService(button, services.DisplayService)
 	}
 
 	app.coreServices = services
