@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"periph.io/x/conn/v3/gpio"
-	"periph.io/x/conn/v3/gpio/gpioreg"
 	"periph.io/x/host/v3"
+	"periph.io/x/host/v3/bcm283x"
 )
 
 // ButtonEvent represents a button press event type.
@@ -34,21 +34,16 @@ func NewButton() (Button, error) {
 		return nil, err
 	}
 
-	pin := gpioreg.ByName("GPIO4")
+	pin := bcm283x.GPIO4
 	if pin == nil {
 		return nil, ErrButtonPinNotFound
 	}
 
-	pinIn, ok := pin.(gpio.PinIn)
-	if !ok {
-		return nil, ErrButtonPinNotFound
-	}
-
-	if err := pinIn.In(gpio.PullDown, gpio.FallingEdge); err != nil {
+	if err := pin.In(gpio.PullDown, gpio.FallingEdge); err != nil {
 		return nil, err
 	}
 
-	return &buttonImpl{pin: pinIn}, nil
+	return &buttonImpl{pin: pin}, nil
 }
 
 // WaitForEvent blocks until a button press is detected or ctx is cancelled.
