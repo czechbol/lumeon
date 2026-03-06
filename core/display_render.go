@@ -131,11 +131,16 @@ func truncateToFit(text string, maxPx int) string {
 	return string(runes)
 }
 
+const (
+	bytesPerMB      = 1 << 20
+	mbDisplayThresh = 0.1 // show MB/s above this, KB/s below
+)
+
 // formatSpeed formats a byte/s value as a compact string with unit suffix.
 // Uses K for kilobytes/s and M for megabytes/s.
 func formatSpeed(bytesPerSec float64) string {
-	mb := bytesPerSec / (1 << 20)
-	if mb >= 0.1 {
+	mb := bytesPerSec / bytesPerMB
+	if mb >= mbDisplayThresh {
 		return fmt.Sprintf("%.1fM", mb)
 	}
 	kb := bytesPerSec / 1024
