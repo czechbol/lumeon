@@ -10,13 +10,11 @@ The [official software](https://github.com/Argon40Tech/Argon40case) is a mix of 
 
 > **Scope:** lumEON targets the Argon EON case only. Other Argon40 products are untested.
 
-
 ## Requirements
 
 - Raspberry Pi with **arm** or **arm64** architecture
 - i2c enabled (see [i2c setup](#i2c-setup) below)
 - One of: Debian/Ubuntu, Fedora/RHEL, Alpine, or Arch Linux
-
 
 ## Installation
 
@@ -67,7 +65,6 @@ sudo systemctl stop lumeond
 sudo systemctl restart lumeond
 ```
 
-
 ## i2c Setup
 
 i2c must be enabled for lumEON to communicate with the fan controller and OLED display.
@@ -94,11 +91,9 @@ $ i2cdetect -y 1
 - `0x1a` — daughterboard (fan + button controller)
 - `0x3c` — OLED display
 
-
 ## Configuration
 
 The default config is installed at `/etc/lumeon/lumeon.toml`. Edit it to adjust fan curves, display interval, and log level, then restart the service.
-
 
 ## Contributing
 

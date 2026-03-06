@@ -60,6 +60,8 @@ nfpms:
       - smartmontools
       - coreutils
 
+    file_name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+
     provides:
       - lumeond
 
