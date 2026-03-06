@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/shirou/gopsutil/cpu"
@@ -16,6 +17,7 @@ const (
 	thermalZonePath = "/sys/class/thermal"
 	procStatPath    = "/proc/stat"
 	procCPUInfo     = "/proc/cpuinfo"
+	cpuCacheTTL     = 30 * time.Second
 )
 
 type CPUStats struct {
@@ -37,10 +39,16 @@ type CPU interface {
 }
 
 type cpuImpl struct {
+	mu          sync.RWMutex
+	cachedStats *CPUStats
+	cacheTime   time.Time
+	cacheTTL    time.Duration
 }
 
 func NewCPU() CPU {
-	return &cpuImpl{}
+	return &cpuImpl{
+		cacheTTL: cpuCacheTTL,
+	}
 }
 
 func (c *cpuImpl) GetAverageTemp() (float64, error) {
@@ -108,6 +116,14 @@ func readTemperature(path string) (float64, error) {
 
 // GetStats returns comprehensive CPU statistics.
 func (c *cpuImpl) GetStats() (*CPUStats, error) {
+	c.mu.RLock()
+	if c.cachedStats != nil && time.Since(c.cacheTime) < c.cacheTTL {
+		stats := *c.cachedStats
+		c.mu.RUnlock()
+		return &stats, nil
+	}
+	c.mu.RUnlock()
+
 	percentages, err := cpu.Percent(time.Second*5, true)
 	if err != nil {
 		return nil, err
@@ -137,10 +153,18 @@ func (c *cpuImpl) GetStats() (*CPUStats, error) {
 		return nil, err
 	}
 
-	return &CPUStats{
+	result := &CPUStats{
 		UsagePercent:   avgPercent[0],
 		AvgTemperature: avgTemp,
 		CoreCount:      len(cores),
 		Cores:          cores,
-	}, nil
+	}
+
+	c.mu.Lock()
+	c.cachedStats = result
+	c.cacheTime = time.Now()
+	c.mu.Unlock()
+
+	stats := *result
+	return &stats, nil
 }
