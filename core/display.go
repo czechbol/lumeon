@@ -21,7 +21,8 @@ const (
 	displayPageCount    = 4
 	displayMaxLines     = 4 // max text lines that fit on the OLED
 	bytesPerMB          = 1 << 20
-	displaySleepTimeout = 2 * time.Minute
+	displaySleepTimeout   = 2 * time.Minute
+	displaySplashDuration = 5 * time.Second
 )
 
 type DisplayService interface {
@@ -121,6 +122,22 @@ func (ds *displayServiceImpl) Shutdown(ctx context.Context) error {
 func (ds *displayServiceImpl) displayLoop() {
 	defer close(ds.shutdownChan)
 
+	// Show splash and warm the CPU stats cache concurrently at startup.
+	slog.Info("showing startup splash")
+	if err := ds.renderSplash(); err != nil {
+		slog.Error("failed to render startup splash", "error", err)
+	}
+	go func() {
+		if _, err := ds.cpu.GetStats(); err != nil {
+			slog.Warn("failed to warm CPU stats cache", "error", err)
+		}
+	}()
+	select {
+	case <-ds.ctx.Done():
+		return
+	case <-time.After(displaySplashDuration):
+	}
+
 	page := 0
 	ticker := time.NewTicker(ds.displayConfig.Interval())
 	defer ticker.Stop()
@@ -128,7 +145,7 @@ func (ds *displayServiceImpl) displayLoop() {
 	sleepTimer := time.NewTimer(displaySleepTimeout)
 	defer sleepTimer.Stop()
 
-	// Render first page immediately
+	// Render first page immediately after splash
 	if err := ds.renderPage(page); err != nil {
 		slog.Error("failed to render display page", "page", page, "error", err)
 	}
