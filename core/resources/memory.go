@@ -39,38 +39,33 @@ func (m *memoryImpl) GetStats() (*MemoryStats, error) {
 	defer file.Close()
 
 	stats := &MemoryStats{}
-	scanner := bufio.NewScanner(file)
+	fields := map[string]*uint64{
+		"MemTotal:":     &stats.Total,
+		"MemFree:":      &stats.Free,
+		"MemAvailable:": &stats.Available,
+		"Buffers:":      &stats.Buffers,
+		"Cached:":       &stats.Cached,
+		"SwapTotal:":    &stats.SwapTotal,
+		"SwapFree:":     &stats.SwapFree,
+	}
 
+	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		line := scanner.Text()
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
+		parts := strings.Fields(scanner.Text())
+		if len(parts) < 2 {
 			continue
 		}
 
-		value, err := strconv.ParseUint(fields[1], 10, 64)
+		ptr, ok := fields[parts[0]]
+		if !ok {
+			continue
+		}
+
+		value, err := strconv.ParseUint(parts[1], 10, 64)
 		if err != nil {
 			continue
 		}
-		// Convert KB to bytes
-		value *= 1024
-
-		switch fields[0] {
-		case "MemTotal:":
-			stats.Total = value
-		case "MemFree:":
-			stats.Free = value
-		case "MemAvailable:":
-			stats.Available = value
-		case "Buffers:":
-			stats.Buffers = value
-		case "Cached:":
-			stats.Cached = value
-		case "SwapTotal:":
-			stats.SwapTotal = value
-		case "SwapFree:":
-			stats.SwapFree = value
-		}
+		*ptr = value * 1024 // Convert KB to bytes
 	}
 
 	stats.Used = stats.Total - stats.Free - stats.Buffers - stats.Cached

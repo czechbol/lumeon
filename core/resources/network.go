@@ -98,7 +98,7 @@ func (n *networkImpl) GetInterfaceStats(iface string) (*NetworkStats, error) {
 	if stat, ok := stats[iface]; ok {
 		return stat, nil
 	}
-	return nil, fmt.Errorf("interface not found: %s", iface)
+	return nil, fmt.Errorf("interface not found %s: %w", iface, ErrInterfaceNotFound)
 }
 
 func parseUint64(s string) uint64 {

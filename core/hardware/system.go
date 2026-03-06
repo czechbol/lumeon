@@ -1,6 +1,7 @@
 package hardware
 
 import (
+	"context"
 	"log/slog"
 	"os/exec"
 
@@ -26,7 +27,7 @@ func NewSystem(bus i2c.I2CBus) System {
 func (s systemImpl) Shutdown() error {
 	slog.Warn("shutting down the system")
 
-	return exec.Command("shutdown", "now").Run()
+	return exec.CommandContext(context.Background(), "shutdown", "now").Run()
 }
 
 func (s systemImpl) Halt() error {

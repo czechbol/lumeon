@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"image"
 	"image/gif"
-	_ "image/png"
+	_ "image/png" // register PNG decoder
 	"log/slog"
 	"sort"
 	"strings"
@@ -122,23 +122,8 @@ func (ds *displayServiceImpl) Shutdown(ctx context.Context) error {
 func (ds *displayServiceImpl) displayLoop() {
 	defer close(ds.shutdownChan)
 
-	// Show animated splash and warm the CPU stats cache concurrently at startup.
-	slog.Info("showing startup splash")
-	go func() {
-		if _, err := ds.cpu.GetStats(); err != nil {
-			slog.Warn("failed to warm CPU stats cache", "error", err)
-		}
-	}()
-	if err := ds.renderAnimatedSplash(); err != nil {
-		slog.Error("failed to render animated splash, trying static", "error", err)
-		if err := ds.renderSplash(); err != nil {
-			slog.Error("failed to render startup splash", "error", err)
-		}
-	}
-	select {
-	case <-ds.ctx.Done():
+	if !ds.showStartupSplash() {
 		return
-	case <-time.After(displaySplashDuration):
 	}
 
 	page := 0
@@ -159,54 +144,90 @@ func (ds *displayServiceImpl) displayLoop() {
 		case <-ds.ctx.Done():
 			slog.Info("stopping display loop due to context cancellation")
 			return
-
 		case <-ticker.C:
-			ds.mutex.RLock()
-			sleeping := ds.sleeping
-			ds.mutex.RUnlock()
-			if !sleeping {
-				if err := ds.renderPage(page); err != nil {
-					slog.Error("failed to render display page", "page", page, "error", err)
-				}
-				page = (page + 1) % displayPageCount
-			}
-
+			page = ds.handleTick(page)
 		case <-sleepTimer.C:
-			slog.Info("display going to sleep")
-			ds.mutex.Lock()
-			ds.sleeping = true
-			ds.mutex.Unlock()
-			if err := ds.oled.Clear(); err != nil {
-				slog.Error("failed to clear display for sleep", "error", err)
-			}
-
+			ds.handleSleep()
 		case <-ds.wakeChan:
-			ds.mutex.Lock()
-			wasSleeping := ds.sleeping
-			ds.sleeping = false
-			ds.mutex.Unlock()
+			ds.handleWake(ticker, sleepTimer)
+		}
+	}
+}
 
-			if !sleepTimer.Stop() {
-				select {
-				case <-sleepTimer.C:
-				default:
-				}
-			}
-			sleepTimer.Reset(displaySleepTimeout)
+// showStartupSplash renders the animated splash, warms the CPU cache, and waits
+// for the splash duration. Returns false if the context was cancelled.
+func (ds *displayServiceImpl) showStartupSplash() bool {
+	slog.Info("showing startup splash")
+	go func() {
+		if _, err := ds.cpu.GetStats(); err != nil {
+			slog.Warn("failed to warm CPU stats cache", "error", err)
+		}
+	}()
+	if err := ds.renderAnimatedSplash(); err != nil {
+		slog.Error("failed to render animated splash, trying static", "error", err)
+		if err := ds.renderSplash(); err != nil {
+			slog.Error("failed to render startup splash", "error", err)
+		}
+	}
+	select {
+	case <-ds.ctx.Done():
+		return false
+	case <-time.After(displaySplashDuration):
+		return true
+	}
+}
 
-			if wasSleeping {
-				slog.Info("display waking up")
-				if err := ds.renderSplash(); err != nil {
-					slog.Error("failed to render splash on wake", "error", err)
-				}
-				// Reset ticker so the splash is visible for a full interval
-				// before data pages begin rendering.
-				ticker.Reset(ds.displayConfig.Interval())
-				select {
-				case <-ticker.C:
-				default:
-				}
-			}
+func (ds *displayServiceImpl) handleTick(page int) int {
+	ds.mutex.RLock()
+	sleeping := ds.sleeping
+	ds.mutex.RUnlock()
+
+	if !sleeping {
+		if err := ds.renderPage(page); err != nil {
+			slog.Error("failed to render display page", "page", page, "error", err)
+		}
+		page = (page + 1) % displayPageCount
+	}
+
+	return page
+}
+
+func (ds *displayServiceImpl) handleSleep() {
+	slog.Info("display going to sleep")
+	ds.mutex.Lock()
+	ds.sleeping = true
+	ds.mutex.Unlock()
+
+	if err := ds.oled.Clear(); err != nil {
+		slog.Error("failed to clear display for sleep", "error", err)
+	}
+}
+
+func (ds *displayServiceImpl) handleWake(ticker *time.Ticker, sleepTimer *time.Timer) {
+	ds.mutex.Lock()
+	wasSleeping := ds.sleeping
+	ds.sleeping = false
+	ds.mutex.Unlock()
+
+	if !sleepTimer.Stop() {
+		select {
+		case <-sleepTimer.C:
+		default:
+		}
+	}
+	sleepTimer.Reset(displaySleepTimeout)
+
+	if wasSleeping {
+		slog.Info("display waking up")
+		if err := ds.renderSplash(); err != nil {
+			slog.Error("failed to render splash on wake", "error", err)
+		}
+		// Reset ticker so the splash is visible for a full interval
+		// before data pages begin rendering.
+		ticker.Reset(ds.displayConfig.Interval())
+		select {
+		case <-ticker.C:
+		default:
 		}
 	}
 }

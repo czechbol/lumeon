@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"image"
 	"image/draw"
-	_ "image/png"
+	_ "image/png" // register PNG decoder
 	"unicode/utf8"
 
 	"golang.org/x/image/font"

@@ -1,6 +1,7 @@
 package resources
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -106,7 +107,7 @@ func (h *hddImpl) getOrRefresh() ([]HDDStats, error) {
 	}
 
 	if len(stats) == 0 {
-		return nil, fmt.Errorf("no valid device stats found")
+		return nil, ErrNoValidDeviceStats
 	}
 
 	h.mu.Lock()
@@ -147,7 +148,7 @@ func (h *hddImpl) GetAverageTemp() (float64, error) {
 }
 
 func getStorageDevices() ([]*dto.BlockDevice, error) {
-	cmd := exec.Command("lsblk", "-b", "-J", "-o", "NAME,SIZE,TYPE,MOUNTPOINT")
+	cmd := exec.CommandContext(context.Background(), "lsblk", "-b", "-J", "-o", "NAME,SIZE,TYPE,MOUNTPOINT")
 	output, err := cmd.Output()
 	if err != nil {
 		slog.Error("error executing lsblk", "error", err)
@@ -183,7 +184,9 @@ func getDeviceSMARTInfo(device *dto.BlockDevice) (*dto.SmartctlOutput, error) {
 		cmdDiskType = "nvme"
 	}
 
-	cmd := exec.Command(
+	//nolint:gosec // cmdDiskType is hardcoded to "sat" or "nvme"; device.Name is from trusted lsblk output
+	cmd := exec.CommandContext(
+		context.Background(),
 		"smartctl",
 		"-d",
 		cmdDiskType,
@@ -219,8 +222,8 @@ func getDeviceSMARTInfo(device *dto.BlockDevice) (*dto.SmartctlOutput, error) {
 	}
 
 	if smartctlOutput.Smartctl.ExitStatus&0x07 != 0 {
-		return nil, fmt.Errorf("smartctl failed for device %s: exit status %d",
-			device.Name, smartctlOutput.Smartctl.ExitStatus)
+		return nil, fmt.Errorf("smartctl failed for device %s: exit status %d: %w",
+			device.Name, smartctlOutput.Smartctl.ExitStatus, ErrSmartctlFailed)
 	}
 
 	slog.Debug("device info found", "device", device, "info", smartctlOutput)
@@ -297,7 +300,7 @@ func populatePartitions(device *dto.BlockDevice) []Partition {
 			Mountpoint: part.MountPoint,
 			FsType:     part.Type,
 			Total:      part.Size,
-			Free:       stat.Bfree * uint64(stat.Bsize),
+			Free:       stat.Bfree * uint64(stat.Bsize), //nolint:gosec // Bsize is a block size, always positive
 		}
 
 		partitions = append(partitions, partition)

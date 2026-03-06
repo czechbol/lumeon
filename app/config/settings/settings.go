@@ -100,14 +100,14 @@ func stringMapStringToPointSlice(input map[string]string) []config.FanCurvePoint
 			os.Exit(1)
 		}
 
-		ukey := uint8(key)
+		ukey := uint8(key) //nolint:gosec // bounds checked above (0–255)
 
 		if value < 0 || value > 100 {
 			slog.Error("fan speeds must be between 0 and 100", "speed", value)
 			os.Exit(1)
 		}
 
-		uvalue := uint8(value)
+		uvalue := uint8(value) //nolint:gosec // bounds checked above (0–100)
 
 		output = append(output, config.FanCurvePoint{Temperature: ukey, Speed: uvalue})
 	}
