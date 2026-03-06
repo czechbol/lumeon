@@ -30,6 +30,7 @@ type OLED interface {
 	DrawImageWithText(img image.Image, x, y int, text string) error
 	DrawGIFWithText(gif *gif.GIF, x, y int, text string) error
 	Scroll(direction types.ScrollDirection, rate types.FrameRate, startLine, endLine int) error
+	StopScroll() error
 }
 
 type oledI2cImpl struct {

@@ -30,6 +30,8 @@ type OLEDMock struct {
 	DrawGIFWithTextHandlerCalled   int
 	ScrollHandler                  func(direction types.ScrollDirection, rate types.FrameRate, startLine, endLine int) error
 	ScrollHandlerCalled            int
+	StopScrollHandler              func() error
+	StopScrollHandlerCalled        int
 }
 
 var _ hardware.OLED = (*OLEDMock)(nil)
@@ -82,4 +84,9 @@ func (m *OLEDMock) DrawGIFWithText(gif *gif.GIF, x, y int, text string) error {
 func (m *OLEDMock) Scroll(direction types.ScrollDirection, rate types.FrameRate, startLine, endLine int) error {
 	m.ScrollHandlerCalled++
 	return m.ScrollHandler(direction, rate, startLine, endLine)
+}
+
+func (m *OLEDMock) StopScroll() error {
+	m.StopScrollHandlerCalled++
+	return m.StopScrollHandler()
 }
