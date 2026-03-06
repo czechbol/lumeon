@@ -1,88 +1,105 @@
 # lumEON
 
 ![GitHub License](https://img.shields.io/github/license/czechbol/lumeon)
-![GitHub Release Date](https://img.shields.io/github/release-date/czechbol/lumeon)
 ![GitHub Release (latest by date)](https://img.shields.io/github/v/release/czechbol/lumeon)
+![GitHub Release Date](https://img.shields.io/github/release-date/czechbol/lumeon)
 
-An alternative implementation for Argon40's EON case.
-The [official repository](https://github.com/Argon40Tech/Argon40case) is a mix of shell and Python scripts that is controlled by a single shell loop.
+An alternative daemon for the [Argon40 EON](https://www.argon40.com/products/argon-eon-pi-nas) Raspberry Pi NAS case. It controls the case fan via configurable temperature curves and drives the OLED display with live system stats over i2c.
 
-The scope of this repository is to cover basics for the Argon EON case; I don't have their other products to test my implementation against.
+The [official software](https://github.com/Argon40Tech/Argon40case) is a mix of shell and Python scripts running in a single loop. lumEON replaces it with a single self-contained Go binary.
+
+> **Scope:** lumEON targets the Argon EON case only. Other Argon40 products are untested.
+
+
+## Requirements
+
+- Raspberry Pi with **arm** or **arm64** architecture
+- i2c enabled (see [i2c setup](#i2c-setup) below)
+- One of: Debian/Ubuntu, Fedora/RHEL, Alpine, or Arch Linux
 
 
 ## Installation
 
-Ready-made packages are available for download in `.deb`, `.apk`, `.rpm` and `.pkg.tar.zst` formats. These packages automatically set up everything for you. You can find these packages in the [Releases](https://github.com/czechbol/lumeon/releases) section of this repository.
+Packages are available in `.deb`, `.rpm`, `.apk`, and `.pkg.tar.zst` formats. They install the binary, systemd service, and default config in one step.
 
-To install the package, download the appropriate file for your system from the Releases section and follow the standard installation procedure for your package manager.
+### Debian / Ubuntu
 
-For example, on a Debian-based system, you can install the `.deb` package using the following command:
-
-```shell
-$ sudo apt install ./lumeon.deb      # Debian and derivates
-$ sudo apk add ./lumeon.apk          # Alpine and derivates
-$ sudo dnf install ./lumeon.rpm      # Fedora and derivates
-$ sudo pacman -U lumeon.pkg.tar.zst  # Arch and derivates
+```sh
+curl -LO https://github.com/czechbol/lumeon/releases/latest/download/lumeon_linux_arm64.deb
+sudo apt install ./lumeon_linux_arm64.deb
 ```
 
-After installing the package, the service should be set up and running.
-You can check its status using your system's service management commands.
+### Fedora / RHEL
 
-```shell
-$ sudo systemctl status lumeon
+```sh
+curl -LO https://github.com/czechbol/lumeon/releases/latest/download/lumeon_linux_arm64.rpm
+sudo dnf install ./lumeon_linux_arm64.rpm
 ```
 
-You can also use the following commands to manage the service using the following commands:
+### Alpine
 
-```shell
-$ sudo systemctl enable lumeond # Enable the service to start on boot
-$ sudo systemctl start lumeond
-$ sudo systemctl stop lumeond
-$ sudo systemctl disable lumeond
-$ sudo systemctl restart lumeond
+```sh
+curl -LO https://github.com/czechbol/lumeon/releases/latest/download/lumeon_linux_arm64.apk
+sudo apk add --allow-untrusted ./lumeon_linux_arm64.apk
+```
+
+### Arch Linux
+
+```sh
+curl -LO https://github.com/czechbol/lumeon/releases/latest/download/lumeon_linux_arm64.pkg.tar.zst
+sudo pacman -U lumeon_linux_arm64.pkg.tar.zst
+```
+
+> For 32-bit Raspberry Pi OS, replace `arm64` with `armv7` in the filename.
+
+After installation the service starts automatically. Check its status with:
+
+```sh
+sudo systemctl status lumeond
+```
+
+Common service commands:
+
+```sh
+sudo systemctl enable lumeond   # start on boot
+sudo systemctl start lumeond
+sudo systemctl stop lumeond
+sudo systemctl restart lumeond
 ```
 
 
-### i2c bus
+## i2c Setup
 
-The i2c bus is required to make the i2c bus available to the programs on the system.
+i2c must be enabled for lumEON to communicate with the fan controller and OLED display.
 
-On Raspberry Pi OS, you can do it via `raspi-config`.
-Otherwise, make sure the following lines are present in `/boot/config.txt`:
+**Raspberry Pi OS:** run `sudo raspi-config` → Interface Options → I2C → Enable.
+
+**Other distros:** add the following to `/boot/config.txt` and reboot:
 
 ```ini
-dtparam=i2c_arm=on,i2c_arm_baudrate=400000 # baudrate is optional but recommended
+dtparam=i2c_arm=on,i2c_arm_baudrate=400000
 ```
 
-Reboot after making the changes; after that the system should be able to detect
-the case's daughter board on the bus `1a` and
-the case's OLED display on the bus `3c`.
-It should look something like this:
+After rebooting, verify the devices are detected:
 
-```shell
+```sh
 $ i2cdetect -y 1
      0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f
 00:                         -- -- -- -- -- -- -- --
 10: -- -- -- -- -- -- -- -- -- -- 1a -- -- -- -- --
 20: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 30: -- -- -- -- -- -- -- -- -- -- -- -- 3c -- -- --
-40: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
-50: -- 51 -- -- -- -- -- -- -- -- -- -- -- -- -- --
-60: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
-70: -- -- -- -- -- -- -- --
 ```
 
-## Development Prerequisites
+- `0x1a` — daughterboard (fan + button controller)
+- `0x3c` — OLED display
 
-Before you can start developing this project, you may want to to install the following tools:
 
-- [GoReleaser](https://goreleaser.com/): Used for building and releasing the project. You can install it by following the instructions on the [GoReleaser installation page](https://goreleaser.com/install/).
+## Configuration
 
-- [golangci-lint](https://golangci-lint.run/): Used for linting the Go code. You can install it by following the instructions on the [golangci-lint installation page](https://golangci-lint.run/usage/install/).
-
-After installing these tools, you can start developing the project by following the instructions in [HACKING.md](HACKING.md).
+The default config is installed at `/etc/lumeon/lumeon.toml`. Edit it to adjust fan curves, display interval, and log level, then restart the service.
 
 
 ## Contributing
 
-This source code of the project is published under the [Mozilla Public License 2.0](LICENSE).
+Source code is published under the [Mozilla Public License 2.0](LICENSE).
