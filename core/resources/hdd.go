@@ -250,8 +250,11 @@ func getSMARTAttribute(deviceInfo *dto.SmartctlOutput, id int) *dto.Attribute {
 func populatePartitions(device *dto.BlockDevice) []Partition {
 	partitions := make([]Partition, 0, len(device.Children))
 	for _, part := range device.Children {
+		if part.MountPoint == "" {
+			continue // skip unmounted partitions
+		}
 		var stat unix.Statfs_t
-		err := unix.Statfs(filepath.Join("/dev", part.Name), &stat)
+		err := unix.Statfs(part.MountPoint, &stat)
 		if err != nil {
 			slog.Error("error getting partition stats", "partition", part, "error", err)
 			continue

@@ -79,7 +79,7 @@ func (c *cpuImpl) getAllTemps() (map[string]float64, error) {
 		temp, err := readTemperature(match)
 		if err != nil {
 			// Log the error but continue with other sensors
-			slog.Error("error reading temperature from %s: %v\n", "target", match, "error", err)
+			slog.Error("error reading temperature", "target", match, "error", err)
 			continue
 		}
 		slog.Debug("read temperature", "target", match, "temperature", temp)
@@ -96,7 +96,7 @@ func readTemperature(path string) (float64, error) {
 		return 0, err
 	}
 
-	// Temperature is typically reported in milliseconds
+	// Temperature is typically reported in millidegrees Celsius.
 	temp, err := strconv.ParseFloat(strings.TrimSpace(string(data)), 64)
 	if err != nil {
 		return 0, err
