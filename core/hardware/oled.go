@@ -79,7 +79,8 @@ func (o *oledI2cImpl) DrawGIF(gif *gif.GIF) error {
 	convertedGIF := convertGIF(o.dev, gif)
 
 	slog.Debug("Drawing GIF")
-	for i := 0; gif.LoopCount <= 0 || i < gif.LoopCount*len(gif.Image); i++ {
+	// LoopCount: -1 = play once, 0 = loop forever, N = loop N times
+	for i := 0; gif.LoopCount == 0 || i < gif.LoopCount*len(gif.Image); i++ {
 		index := i % len(gif.Image)
 		c := time.After(time.Duration(10*convertedGIF.Delay[index]) * time.Millisecond)
 		img := convertedGIF.Image[index]
@@ -127,7 +128,8 @@ func (o *oledI2cImpl) DrawGIFWithText(gif *gif.GIF, x, y int, text string) error
 	}
 
 	slog.Debug("Drawing GIF")
-	for i := 0; gif.LoopCount <= 0 || i < gif.LoopCount*len(gif.Image); i++ {
+	// LoopCount: -1 = play once, 0 = loop forever, N = loop N times
+	for i := 0; gif.LoopCount == 0 || i < gif.LoopCount*len(gif.Image); i++ {
 		index := i % len(gif.Image)
 		c := time.After(time.Duration(10*gif.Delay[index]) * time.Millisecond)
 		img := convertedGIF.Image[index]

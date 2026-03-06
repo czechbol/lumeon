@@ -163,16 +163,23 @@ func (ds *displayServiceImpl) showStartupSplash() bool {
 			slog.Warn("failed to warm CPU stats cache", "error", err)
 		}
 	}()
+
+	start := time.Now()
 	if err := ds.renderAnimatedSplash(); err != nil {
 		slog.Error("failed to render animated splash, trying static", "error", err)
-		if err := ds.renderSplash(); err != nil {
-			slog.Error("failed to render startup splash", "error", err)
-		}
+	}
+	// Show static splash for the remainder of the splash duration.
+	if err := ds.renderSplash(); err != nil {
+		slog.Error("failed to render startup splash", "error", err)
+	}
+	remaining := displaySplashDuration - time.Since(start)
+	if remaining <= 0 {
+		return true
 	}
 	select {
 	case <-ds.ctx.Done():
 		return false
-	case <-time.After(displaySplashDuration):
+	case <-time.After(remaining):
 		return true
 	}
 }
@@ -395,12 +402,13 @@ func (ds *displayServiceImpl) renderSplash() error {
 	return ds.oled.DrawImage(img)
 }
 
-// renderAnimatedSplash draws the animated GIF splash.
+// renderAnimatedSplash draws the animated GIF splash once.
 func (ds *displayServiceImpl) renderAnimatedSplash() error {
 	g, err := gif.DecodeAll(bytes.NewReader(splashGIF))
 	if err != nil {
 		slog.Warn("failed to decode animated splash, falling back to static", "error", err)
 		return ds.renderSplash()
 	}
+	g.LoopCount = -1 // play once
 	return ds.oled.DrawGIF(g)
 }
