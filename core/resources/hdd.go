@@ -2,6 +2,7 @@ package resources
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os/exec"
@@ -143,7 +144,8 @@ func getDeviceSMARTInfo(device *dto.BlockDevice) (*dto.SmartctlOutput, error) {
 		"--log=error",
 	)
 	output, err := cmd.Output()
-	if err != nil {
+	var exitErr *exec.ExitError
+	if err != nil && !errors.As(err, &exitErr) {
 		slog.Error("error executing smartctl for device", "device", device, "error", err)
 		return nil, err
 	}
@@ -159,6 +161,11 @@ func getDeviceSMARTInfo(device *dto.BlockDevice) (*dto.SmartctlOutput, error) {
 	if smartctlOutput.JSONFormatVersion[0] != 1 {
 		slog.Error("unsupported JSON format version", "version", smartctlOutput.JSONFormatVersion)
 		return nil, ErrSmartOutputVersionIncompatible
+	}
+
+	if smartctlOutput.Smartctl.ExitStatus&0x07 != 0 {
+		return nil, fmt.Errorf("smartctl failed for device %s: exit status %d",
+			device.Name, smartctlOutput.Smartctl.ExitStatus)
 	}
 
 	slog.Debug("device info found", "device", device, "info", smartctlOutput)
