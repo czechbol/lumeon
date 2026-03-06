@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"fmt"
 	"image"
 	"image/draw"
 	_ "image/png" // register PNG decoder
@@ -116,7 +117,27 @@ func drawHeader(canvas draw.Image, iconData []byte, title string) int {
 	return headerHeight
 }
 
-// Precompute right-aligned text position.
+// rightAlignX returns the x position to right-align text on the canvas.
 func rightAlignX(text string) int {
 	return canvasW - textWidth(text)
+}
+
+// truncateToFit shortens text so its pixel width does not exceed maxPx.
+func truncateToFit(text string, maxPx int) string {
+	runes := []rune(text)
+	for len(runes)*7 > maxPx {
+		runes = runes[:len(runes)-1]
+	}
+	return string(runes)
+}
+
+// formatSpeed formats a byte/s value as a compact string with unit suffix.
+// Uses K for kilobytes/s and M for megabytes/s.
+func formatSpeed(bytesPerSec float64) string {
+	mb := bytesPerSec / (1 << 20)
+	if mb >= 0.1 {
+		return fmt.Sprintf("%.1fM", mb)
+	}
+	kb := bytesPerSec / 1024
+	return fmt.Sprintf("%.0fK", kb)
 }

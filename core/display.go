@@ -20,7 +20,6 @@ import (
 
 const (
 	displayPageCount      = 4
-	bytesPerMB            = 1 << 20
 	displaySleepTimeout   = 2 * time.Minute
 	displaySplashDuration = 5 * time.Second
 )
@@ -346,11 +345,11 @@ func (ds *displayServiceImpl) renderNetworkPage() error {
 
 	for _, iface := range ifaces {
 		stat := allStats[iface]
-		rxMB := stat.ReceiveSpeed / bytesPerMB
-		txMB := stat.SendSpeed / bytesPerMB
-		drawText(canvas, iface, 0, y)
-		speeds := fmt.Sprintf("\u2193%.1f \u2191%.1f MB/s", rxMB, txMB)
-		drawText(canvas, speeds, rightAlignX(speeds), y)
+		speeds := fmt.Sprintf("\u2193%s \u2191%s", formatSpeed(stat.ReceiveSpeed), formatSpeed(stat.SendSpeed))
+		speedsX := rightAlignX(speeds)
+		name := truncateToFit(iface, speedsX-7) // 7px gap before speeds
+		drawText(canvas, name, 0, y)
+		drawText(canvas, speeds, speedsX, y)
 		y += lineHeight
 		if y+lineHeight > canvasH {
 			break
@@ -379,10 +378,11 @@ func (ds *displayServiceImpl) renderHDDPage() error {
 		if !stat.SmartStatus.HealthOK {
 			health = "!"
 		}
-		name := stat.DeviceName
-		drawText(canvas, name, 0, y)
 		detail := fmt.Sprintf("%.0f\u00b0C %s", stat.Temperature, health)
-		drawText(canvas, detail, rightAlignX(detail), y)
+		detailX := rightAlignX(detail)
+		name := truncateToFit(stat.DeviceName, detailX-7) // 7px gap before detail
+		drawText(canvas, name, 0, y)
+		drawText(canvas, detail, detailX, y)
 		y += lineHeight
 		if y+lineHeight > canvasH {
 			break
