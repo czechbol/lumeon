@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"image"
+	"image/gif"
 	_ "image/png"
 	"log/slog"
 	"sort"
@@ -18,9 +19,8 @@ import (
 )
 
 const (
-	displayPageCount    = 4
-	displayMaxLines     = 4 // max text lines that fit on the OLED
-	bytesPerMB          = 1 << 20
+	displayPageCount      = 4
+	bytesPerMB            = 1 << 20
 	displaySleepTimeout   = 2 * time.Minute
 	displaySplashDuration = 5 * time.Second
 )
@@ -122,16 +122,19 @@ func (ds *displayServiceImpl) Shutdown(ctx context.Context) error {
 func (ds *displayServiceImpl) displayLoop() {
 	defer close(ds.shutdownChan)
 
-	// Show splash and warm the CPU stats cache concurrently at startup.
+	// Show animated splash and warm the CPU stats cache concurrently at startup.
 	slog.Info("showing startup splash")
-	if err := ds.renderSplash(); err != nil {
-		slog.Error("failed to render startup splash", "error", err)
-	}
 	go func() {
 		if _, err := ds.cpu.GetStats(); err != nil {
 			slog.Warn("failed to warm CPU stats cache", "error", err)
 		}
 	}()
+	if err := ds.renderAnimatedSplash(); err != nil {
+		slog.Error("failed to render animated splash, trying static", "error", err)
+		if err := ds.renderSplash(); err != nil {
+			slog.Error("failed to render startup splash", "error", err)
+		}
+	}
 	select {
 	case <-ds.ctx.Done():
 		return
@@ -228,16 +231,32 @@ func (ds *displayServiceImpl) renderCPUPage() error {
 		return fmt.Errorf("getting cpu stats: %w", err)
 	}
 
-	lines := make([]string, 0, displayMaxLines)
-	lines = append(lines, fmt.Sprintf("CPU: %.1f%% %.0f\u00b0C", stats.UsagePercent, stats.AvgTemperature))
-	for i, core := range stats.Cores {
-		if i >= 3 {
+	canvas := newCanvas()
+	y := drawHeader(canvas, iconCPUPNG,
+		fmt.Sprintf("CPU %.0f\u00b0C", stats.AvgTemperature))
+
+	// Usage bar
+	drawProgressBar(canvas, 0, y, canvasW-textWidth(" 100%")-2, stats.UsagePercent)
+	drawText(canvas, fmt.Sprintf(" %.0f%%", stats.UsagePercent), canvasW-textWidth(" 100%")-2, y-2)
+	y += barHeight + 2
+
+	// Core usage pairs (2 per line)
+	for i := 0; i < len(stats.Cores); i += 2 {
+		left := fmt.Sprintf("C%d:%.0f%%", stats.Cores[i].ID, stats.Cores[i].UsagePercent)
+		if i+1 < len(stats.Cores) {
+			right := fmt.Sprintf("C%d:%.0f%%", stats.Cores[i+1].ID, stats.Cores[i+1].UsagePercent)
+			drawText(canvas, left, 0, y)
+			drawText(canvas, right, canvasW/2, y)
+		} else {
+			drawText(canvas, left, 0, y)
+		}
+		y += lineHeight
+		if y+lineHeight > canvasH {
 			break
 		}
-		lines = append(lines, fmt.Sprintf(" C%d: %.1f%%", core.ID, core.UsagePercent))
 	}
 
-	return ds.oled.DrawLines(lines)
+	return ds.oled.DrawImage(canvas)
 }
 
 func (ds *displayServiceImpl) renderMemoryPage() error {
@@ -252,13 +271,24 @@ func (ds *displayServiceImpl) renderMemoryPage() error {
 	swapUsedGB := float64(stats.SwapUsed) / gb
 	swapTotalGB := float64(stats.SwapTotal) / gb
 
-	lines := []string{
-		fmt.Sprintf("RAM: %.1f/%.1f GB", usedGB, totalGB),
-		fmt.Sprintf("Used: %.0f%%", stats.UsagePercent),
-		fmt.Sprintf("Swap: %.1f/%.1f GB", swapUsedGB, swapTotalGB),
-	}
+	canvas := newCanvas()
+	y := drawHeader(canvas, iconMemoryPNG, "Memory")
 
-	return ds.oled.DrawLines(lines)
+	// RAM bar + percentage
+	pctText := fmt.Sprintf(" %.0f%%", stats.UsagePercent)
+	barW := canvasW - textWidth(pctText) - 2
+	drawProgressBar(canvas, 0, y, barW, stats.UsagePercent)
+	drawText(canvas, pctText, barW+2, y-2)
+	y += barHeight + 2
+
+	// RAM usage detail
+	drawText(canvas, fmt.Sprintf("RAM  %.1f / %.1f GB", usedGB, totalGB), 0, y)
+	y += lineHeight
+
+	// Swap usage
+	drawText(canvas, fmt.Sprintf("Swap %.1f / %.1f GB", swapUsedGB, swapTotalGB), 0, y)
+
+	return ds.oled.DrawImage(canvas)
 }
 
 func (ds *displayServiceImpl) renderNetworkPage() error {
@@ -278,19 +308,28 @@ func (ds *displayServiceImpl) renderNetworkPage() error {
 	}
 	sort.Strings(ifaces)
 
-	lines := make([]string, 0, displayMaxLines)
+	canvas := newCanvas()
+	y := drawHeader(canvas, iconNetworkPNG, "Network")
+
+	if len(ifaces) == 0 {
+		drawText(canvas, "No interfaces", 0, y)
+		return ds.oled.DrawImage(canvas)
+	}
+
 	for _, iface := range ifaces {
 		stat := allStats[iface]
 		rxMB := stat.ReceiveSpeed / bytesPerMB
 		txMB := stat.SendSpeed / bytesPerMB
-		lines = append(lines, fmt.Sprintf("%s \u2193%.1f \u2191%.1f MB/s", iface, rxMB, txMB))
+		drawText(canvas, iface, 0, y)
+		speeds := fmt.Sprintf("\u2193%.1f \u2191%.1f MB/s", rxMB, txMB)
+		drawText(canvas, speeds, rightAlignX(speeds), y)
+		y += lineHeight
+		if y+lineHeight > canvasH {
+			break
+		}
 	}
 
-	if len(lines) == 0 {
-		lines = append(lines, "No interfaces")
-	}
-
-	return ds.oled.DrawLines(lines)
+	return ds.oled.DrawImage(canvas)
 }
 
 func (ds *displayServiceImpl) renderHDDPage() error {
@@ -299,27 +338,48 @@ func (ds *displayServiceImpl) renderHDDPage() error {
 		return fmt.Errorf("getting hdd stats: %w", err)
 	}
 
-	lines := make([]string, 0, len(allStats))
+	canvas := newCanvas()
+	y := drawHeader(canvas, iconHDDPNG, "Storage")
+
+	if len(allStats) == 0 {
+		drawText(canvas, "No drives", 0, y)
+		return ds.oled.DrawImage(canvas)
+	}
+
 	for _, stat := range allStats {
 		health := "OK"
 		if !stat.SmartStatus.HealthOK {
 			health = "!"
 		}
-		lines = append(lines, fmt.Sprintf("%s %.0f\u00b0C %s", stat.DeviceName, stat.Temperature, health))
+		name := stat.DeviceName
+		drawText(canvas, name, 0, y)
+		detail := fmt.Sprintf("%.0f\u00b0C %s", stat.Temperature, health)
+		drawText(canvas, detail, rightAlignX(detail), y)
+		y += lineHeight
+		if y+lineHeight > canvasH {
+			break
+		}
 	}
 
-	if len(lines) == 0 {
-		lines = append(lines, "No drives")
-	}
-
-	return ds.oled.DrawLines(lines)
+	return ds.oled.DrawImage(canvas)
 }
 
-// renderSplash draws the embedded pixel-art logo onto the display.
+// renderSplash draws the embedded splash onto the display.
+// Uses the animated GIF on first boot, static PNG on wake.
 func (ds *displayServiceImpl) renderSplash() error {
 	img, _, err := image.Decode(bytes.NewReader(splashPNG))
 	if err != nil {
 		return fmt.Errorf("decoding splash image: %w", err)
 	}
 	return ds.oled.DrawImage(img)
+}
+
+// renderAnimatedSplash draws the animated GIF splash.
+func (ds *displayServiceImpl) renderAnimatedSplash() error {
+	g, err := gif.DecodeAll(bytes.NewReader(splashGIF))
+	if err != nil {
+		slog.Warn("failed to decode animated splash, falling back to static", "error", err)
+		return ds.renderSplash()
+	}
+	return ds.oled.DrawGIF(g)
 }
