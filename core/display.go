@@ -7,6 +7,7 @@ import (
 	"image"
 	_ "image/png"
 	"log/slog"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -18,6 +19,7 @@ import (
 
 const (
 	displayPageCount    = 4
+	displayMaxLines     = 4 // max text lines that fit on the OLED
 	bytesPerMB          = 1 << 20
 	displaySleepTimeout = 2 * time.Minute
 )
@@ -209,7 +211,7 @@ func (ds *displayServiceImpl) renderCPUPage() error {
 		return fmt.Errorf("getting cpu stats: %w", err)
 	}
 
-	lines := make([]string, 0, displayPageCount)
+	lines := make([]string, 0, displayMaxLines)
 	lines = append(lines, fmt.Sprintf("CPU: %.1f%% %.0f\u00b0C", stats.UsagePercent, stats.AvgTemperature))
 	for i, core := range stats.Cores {
 		if i >= 3 {
@@ -248,13 +250,20 @@ func (ds *displayServiceImpl) renderNetworkPage() error {
 		return fmt.Errorf("getting network stats: %w", err)
 	}
 
-	lines := make([]string, 0, displayPageCount)
-	for iface, stat := range allStats {
+	ifaces := make([]string, 0, len(allStats))
+	for iface := range allStats {
 		if iface == "lo" ||
 			strings.HasPrefix(iface, "veth") ||
 			strings.HasPrefix(iface, "br-") {
 			continue
 		}
+		ifaces = append(ifaces, iface)
+	}
+	sort.Strings(ifaces)
+
+	lines := make([]string, 0, displayMaxLines)
+	for _, iface := range ifaces {
+		stat := allStats[iface]
 		rxMB := stat.ReceiveSpeed / bytesPerMB
 		txMB := stat.SendSpeed / bytesPerMB
 		lines = append(lines, fmt.Sprintf("%s \u2193%.1f \u2191%.1f MB/s", iface, rxMB, txMB))
