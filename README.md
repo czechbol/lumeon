@@ -95,6 +95,10 @@ $ i2cdetect -y 1
 
 The default config is installed at `/etc/lumeon/lumeon.toml`. Edit it to adjust fan curves, display interval, and log level, then restart the service.
 
+## Acknowledgements
+
+lumEON was initially inspired by and built upon [neon](https://codeberg.org/pancake/neon) by pancake, also licensed [MPL-2.0](https://codeberg.org/pancake/neon/raw/branch/main/LICENSE).
+
 ## Contributing
 
 Source code is published under the [Mozilla Public License 2.0](LICENSE).

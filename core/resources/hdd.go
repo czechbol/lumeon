@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MPL-2.0
+// Based on https://codeberg.org/pancake/neon (MPL-2.0)
+
 package resources
 
 import (
