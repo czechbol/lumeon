@@ -137,17 +137,21 @@ func (ds *displayServiceImpl) displayLoop() {
 	}
 
 	page := 0
-	ticker := time.NewTicker(ds.displayConfig.Interval())
-	defer ticker.Stop()
 
 	sleepTimer := time.NewTimer(displaySleepTimeout)
 	defer sleepTimer.Stop()
 
-	// Render first page immediately after splash
+	// Render first page immediately after splash. The ticker is created
+	// afterwards so that any blocking inside renderPage (e.g. cpu.Percent's
+	// 5-second sampling window on a cold cache) doesn't pre-fire a tick and
+	// cause the next page to render without dwell time.
 	if err := ds.renderPage(page); err != nil {
 		slog.Error("failed to render display page", "page", page, "error", err)
 	}
 	page = (page + 1) % displayPageCount
+
+	ticker := time.NewTicker(ds.displayConfig.Interval())
+	defer ticker.Stop()
 
 	for {
 		select {
