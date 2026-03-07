@@ -156,6 +156,13 @@ func (ds *displayServiceImpl) displayLoop() {
 			return
 		case <-ticker.C:
 			page = ds.handleTick(page)
+			// Drain any tick that accumulated while a scrollPage-based page was
+			// blocking internally. Without this, the buffered tick causes the next
+			// page to render immediately with no visible dwell time.
+			select {
+			case <-ticker.C:
+			default:
+			}
 		case <-sleepTimer.C:
 			ds.handleSleep()
 		case <-ds.wakeChan:
