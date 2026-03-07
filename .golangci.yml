@@ -125,6 +125,9 @@ linters:
           - revive
         path: app/config/settings/settings\.go
         text: ^add-constant:.*
+      - linters:
+          - revive
+        path: cmd/demo_gif/
     paths:
       - third_party$
       - builtin$

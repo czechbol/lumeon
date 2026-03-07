@@ -66,15 +66,15 @@ func (c *capturingOLED) DrawGIF(g *gif.GIF) error {
 	return nil
 }
 
-func (c *capturingOLED) Invert(bool) error                                                 { return nil }
-func (c *capturingOLED) SetContrast(uint8) error                                            { return nil }
-func (c *capturingOLED) Clear() error                                                       { return nil }
-func (c *capturingOLED) DrawText(string, int, int) error                                    { return nil }
-func (c *capturingOLED) DrawLines([]string) error                                           { return nil }
-func (c *capturingOLED) DrawImageWithText(image.Image, int, int, string) error              { return nil }
-func (c *capturingOLED) DrawGIFWithText(*gif.GIF, int, int, string) error                  { return nil }
-func (c *capturingOLED) Scroll(types.ScrollDirection, types.FrameRate, int, int) error     { return nil }
-func (c *capturingOLED) StopScroll() error                                                  { return nil }
+func (c *capturingOLED) Invert(bool) error                                             { return nil }
+func (c *capturingOLED) SetContrast(uint8) error                                       { return nil }
+func (c *capturingOLED) Clear() error                                                  { return nil }
+func (c *capturingOLED) DrawText(string, int, int) error                               { return nil }
+func (c *capturingOLED) DrawLines([]string) error                                      { return nil }
+func (c *capturingOLED) DrawImageWithText(image.Image, int, int, string) error         { return nil }
+func (c *capturingOLED) DrawGIFWithText(*gif.GIF, int, int, string) error              { return nil }
+func (c *capturingOLED) Scroll(types.ScrollDirection, types.FrameRate, int, int) error { return nil }
+func (c *capturingOLED) StopScroll() error                                             { return nil }
 
 var _ hardware.OLED = (*capturingOLED)(nil)
 
@@ -104,8 +104,8 @@ func buildMemory() resources.Memory {
 	return &resmock.MemoryMock{
 		GetStatsHandler: func() (*resources.MemoryStats, error) {
 			total := uint64(8) * gb
-			used := uint64(32) * gb / 10  // 3.2 GB
-			avail := uint64(9) * gb / 2   // 4.5 GB
+			used := uint64(32) * gb / 10 // 3.2 GB
+			avail := uint64(9) * gb / 2  // 4.5 GB
 			swapTotal := uint64(4) * gb
 			swapUsed := uint64(512) * (1 << 20)
 			return &resources.MemoryStats{
@@ -124,7 +124,7 @@ func buildNetwork() resources.Network {
 	const mb = 1 << 20
 	const gb = 1 << 30
 	return &resmock.NetworkMock{
-		GetInterfaceStatsHandler: func(iface string) (*resources.NetworkStats, error) {
+		GetInterfaceStatsHandler: func(_ string) (*resources.NetworkStats, error) {
 			return nil, nil
 		},
 		GetAllInterfaceStatsHandler: func() (map[string]*resources.NetworkStats, error) {
@@ -228,8 +228,8 @@ func buildGIF(frames []capturedFrame, outputPath string, scale int) {
 		log.Fatal("no frames captured")
 	}
 
-	var gifFrames []*image.Paletted
-	var delays []int
+	gifFrames := make([]*image.Paletted, 0, len(data))
+	delays := make([]int, 0, len(data))
 
 	for i, f := range data {
 		var delay int
@@ -257,10 +257,14 @@ func buildGIF(frames []capturedFrame, outputPath string, scale int) {
 	if err != nil {
 		log.Fatalf("creating %s: %v", outputPath, err)
 	}
-	defer f.Close()
 
 	if err := gif.EncodeAll(f, g); err != nil {
+		_ = f.Close()
 		log.Fatalf("encoding GIF: %v", err)
+	}
+
+	if err := f.Close(); err != nil {
+		log.Fatalf("closing %s: %v", outputPath, err)
 	}
 
 	fmt.Printf("wrote %d frames to %s (%dx%d pixels)\n",
@@ -288,13 +292,14 @@ func main() {
 
 	// Run long enough for the 5 s animated splash and one full page cycle.
 	ctx, cancel := context.WithTimeout(context.Background(), 9*time.Second)
-	defer cancel()
 
 	if err := svc.Start(ctx); err != nil {
+		cancel()
 		log.Fatalf("starting display service: %v", err)
 	}
 
 	<-ctx.Done()
+	cancel()
 
 	shutCtx, shutCancel := context.WithTimeout(context.Background(), time.Second)
 	defer shutCancel()

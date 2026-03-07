@@ -15,3 +15,9 @@ repos:
   rev: v0.13.0
   hooks:
   - id: yamlfmt
+- repo: https://github.com/golangci/golangci-lint
+  rev: v2.11.1
+  hooks:
+  - id: golangci-lint
+  - id: golangci-lint-fmt
+  - id: golangci-lint-config-verify
