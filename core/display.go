@@ -31,6 +31,9 @@ type DisplayService interface {
 	Wake()
 }
 
+// linesPerPage is the number of data rows that fit below the header.
+const linesPerPage = (canvasH - headerHeight) / lineHeight // = 3
+
 type displayServiceImpl struct {
 	mutex         sync.RWMutex
 	running       bool
@@ -45,6 +48,11 @@ type displayServiceImpl struct {
 	cancel        context.CancelFunc
 	shutdownChan  chan struct{}
 	wakeChan      chan struct{}
+
+	// scroll offsets: advanced each time the respective page renders
+	cpuCoreOffset int
+	netOffset     int
+	hddOffset     int
 }
 
 func NewDisplayService(
@@ -238,6 +246,28 @@ func (ds *displayServiceImpl) handleWake(ticker *time.Ticker, sleepTimer *time.T
 	}
 }
 
+// pageSlice returns the [start, end) window into a list of `total` items for the
+// current scroll offset, and the next offset to use on the following render.
+// If total <= pageSize all items are shown and the offset resets to 0.
+func pageSlice(total, offset, pageSize int) (start, end, next int) {
+	if total <= pageSize {
+		return 0, total, 0
+	}
+	start = offset
+	if start >= total {
+		start = 0
+	}
+	end = start + pageSize
+	if end > total {
+		end = total
+	}
+	next = start + pageSize
+	if next >= total {
+		next = 0
+	}
+	return
+}
+
 func (ds *displayServiceImpl) renderPage(page int) error {
 	switch page {
 	case 0:
@@ -262,25 +292,29 @@ func (ds *displayServiceImpl) renderCPUPage() error {
 	y := drawHeader(canvas, iconCPUPNG,
 		fmt.Sprintf("CPU %.0f\u00b0C", stats.AvgTemperature))
 
-	// Usage bar
-	drawProgressBar(canvas, 0, y, canvasW-textWidth(" 100%")-2, stats.UsagePercent)
-	drawText(canvas, fmt.Sprintf(" %.0f%%", stats.UsagePercent), canvasW-textWidth(" 100%")-2, y-2)
-	y += barHeight + 2
+	// Usage bar + percentage on the same row
+	pctText := fmt.Sprintf(" %.0f%%", stats.UsagePercent)
+	barW := canvasW - textWidth(pctText) - 2
+	drawProgressBar(canvas, 0, y, barW, stats.UsagePercent)
+	drawText(canvas, pctText, barW+2, y)
+	y += lineHeight
 
-	// Core usage pairs (2 per line)
-	for i := 0; i < len(stats.Cores); i += 2 {
+	// Core usage pairs (2 per line); scroll when pairs exceed available lines.
+	// One row is consumed by the bar, so linesPerPage-1 pairs fit.
+	const coreLinesPerPage = linesPerPage - 1
+	pairs := (len(stats.Cores) + 1) / 2
+	offset, end, next := pageSlice(pairs, ds.cpuCoreOffset, coreLinesPerPage)
+	ds.cpuCoreOffset = next
+
+	for p := offset; p < end; p++ {
+		i := p * 2
 		left := fmt.Sprintf("C%d:%.0f%%", stats.Cores[i].ID, stats.Cores[i].UsagePercent)
+		drawText(canvas, left, 0, y)
 		if i+1 < len(stats.Cores) {
 			right := fmt.Sprintf("C%d:%.0f%%", stats.Cores[i+1].ID, stats.Cores[i+1].UsagePercent)
-			drawText(canvas, left, 0, y)
 			drawText(canvas, right, canvasW/2, y)
-		} else {
-			drawText(canvas, left, 0, y)
 		}
 		y += lineHeight
-		if y+lineHeight > canvasH {
-			break
-		}
 	}
 
 	return ds.oled.DrawImage(canvas)
@@ -301,12 +335,12 @@ func (ds *displayServiceImpl) renderMemoryPage() error {
 	canvas := newCanvas()
 	y := drawHeader(canvas, iconMemoryPNG, "Memory")
 
-	// RAM bar + percentage
+	// RAM bar + percentage on the same row
 	pctText := fmt.Sprintf(" %.0f%%", stats.UsagePercent)
 	barW := canvasW - textWidth(pctText) - 2
 	drawProgressBar(canvas, 0, y, barW, stats.UsagePercent)
-	drawText(canvas, pctText, barW+2, y-2)
-	y += barHeight + 2
+	drawText(canvas, pctText, barW+2, y)
+	y += lineHeight
 
 	// RAM usage detail
 	drawText(canvas, fmt.Sprintf("RAM  %.1f / %.1f GB", usedGB, totalGB), 0, y)
@@ -343,17 +377,17 @@ func (ds *displayServiceImpl) renderNetworkPage() error {
 		return ds.oled.DrawImage(canvas)
 	}
 
-	for _, iface := range ifaces {
+	offset, end, next := pageSlice(len(ifaces), ds.netOffset, linesPerPage)
+	ds.netOffset = next
+
+	for _, iface := range ifaces[offset:end] {
 		stat := allStats[iface]
 		speeds := fmt.Sprintf("\u2193%s \u2191%s", formatSpeed(stat.ReceiveSpeed), formatSpeed(stat.SendSpeed))
 		speedsX := rightAlignX(speeds)
-		name := truncateToFit(iface, speedsX-7) // 7px gap before speeds
+		name := truncateToFit(iface, speedsX-6) // 6px gap before speeds
 		drawText(canvas, name, 0, y)
 		drawText(canvas, speeds, speedsX, y)
 		y += lineHeight
-		if y+lineHeight > canvasH {
-			break
-		}
 	}
 
 	return ds.oled.DrawImage(canvas)
@@ -373,20 +407,20 @@ func (ds *displayServiceImpl) renderHDDPage() error {
 		return ds.oled.DrawImage(canvas)
 	}
 
-	for _, stat := range allStats {
+	offset, end, next := pageSlice(len(allStats), ds.hddOffset, linesPerPage)
+	ds.hddOffset = next
+
+	for _, stat := range allStats[offset:end] {
 		health := "OK"
 		if !stat.SmartStatus.HealthOK {
 			health = "!"
 		}
 		detail := fmt.Sprintf("%.0f\u00b0C %s", stat.Temperature, health)
 		detailX := rightAlignX(detail)
-		name := truncateToFit(stat.DeviceName, detailX-7) // 7px gap before detail
+		name := truncateToFit(stat.DeviceName, detailX-6) // 6px gap before detail
 		drawText(canvas, name, 0, y)
 		drawText(canvas, detail, detailX, y)
 		y += lineHeight
-		if y+lineHeight > canvasH {
-			break
-		}
 	}
 
 	return ds.oled.DrawImage(canvas)

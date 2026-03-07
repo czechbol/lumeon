@@ -8,8 +8,8 @@ import (
 	_ "image/png" // register PNG decoder
 	"unicode/utf8"
 
+	bitmapfont "github.com/hajimehoshi/bitmapfont/v3"
 	"golang.org/x/image/font"
-	"golang.org/x/image/font/basicfont"
 	"golang.org/x/image/math/fixed"
 	"periph.io/x/devices/v3/ssd1306/image1bit"
 )
@@ -21,8 +21,8 @@ const (
 	// Layout constants for stat pages.
 	headerHeight = 16 // icon row height
 	iconSize     = 16
-	lineHeight   = 13 // text line height (matches Face7x13)
-	barHeight    = 8
+	lineHeight   = 16 // text line height (matches bitmapfont 6×16)
+	barHeight    = 16 // matches lineHeight so bar and text share the same row slot
 	barBorder    = 1
 )
 
@@ -46,10 +46,12 @@ func drawIcon(canvas draw.Image, icon image.Image, x, y int) {
 	}
 }
 
-// drawText renders a string at (x, y) using basicfont.Face7x13.
+// drawText renders a string at (x, y) using bitmapfont.Face (6×16).
 // y is the top of the text area (ascent is added internally).
+// bitmapfont covers printable ASCII plus many Unicode characters including
+// degree sign (U+00B0), up arrow (U+2191), and down arrow (U+2193).
 func drawText(canvas draw.Image, text string, x, y int) {
-	face := basicfont.Face7x13
+	face := bitmapfont.Face
 	d := &font.Drawer{
 		Dst:  canvas,
 		Src:  image.NewUniform(image1bit.On),
@@ -59,9 +61,9 @@ func drawText(canvas draw.Image, text string, x, y int) {
 	d.DrawString(text)
 }
 
-// textWidth returns the pixel width of a string in Face7x13.
+// textWidth returns the pixel width of a string in bitmapfont.Face (6px per glyph).
 func textWidth(text string) int {
-	return utf8.RuneCountInString(text) * 7
+	return utf8.RuneCountInString(text) * 6
 }
 
 // drawProgressBar draws a horizontal bar with 1px border.
@@ -113,7 +115,7 @@ func decodeIcon(data []byte) image.Image {
 func drawHeader(canvas draw.Image, iconData []byte, title string) int {
 	icon := decodeIcon(iconData)
 	drawIcon(canvas, icon, 0, 0)
-	drawText(canvas, title, iconSize+2, 1)
+	drawText(canvas, title, iconSize+2, 0)
 	return headerHeight
 }
 
@@ -125,7 +127,7 @@ func rightAlignX(text string) int {
 // truncateToFit shortens text so its pixel width does not exceed maxPx.
 func truncateToFit(text string, maxPx int) string {
 	runes := []rune(text)
-	for len(runes)*7 > maxPx {
+	for len(runes)*6 > maxPx {
 		runes = runes[:len(runes)-1]
 	}
 	return string(runes)
