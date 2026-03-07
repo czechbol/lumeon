@@ -148,3 +148,21 @@ func formatSpeed(bytesPerSec float64) string {
 	kb := bytesPerSec / 1024
 	return fmt.Sprintf("%.0fK", kb)
 }
+
+const (
+	bytesPerGB = 1 << 30
+	bytesPerTB = 1 << 40
+)
+
+// formatBytes formats a byte count as a compact human-readable string.
+// Uses M for megabytes, G for gigabytes, T for terabytes.
+func formatBytes(bytes uint64) string {
+	switch {
+	case bytes >= bytesPerTB:
+		return fmt.Sprintf("%.1fT", float64(bytes)/bytesPerTB)
+	case bytes >= bytesPerGB:
+		return fmt.Sprintf("%.1fG", float64(bytes)/bytesPerGB)
+	default:
+		return fmt.Sprintf("%.0fM", float64(bytes)/(1<<20))
+	}
+}

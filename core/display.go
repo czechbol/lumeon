@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	displayPageCount      = 4
+	displayPageCount      = 5
 	displaySleepTimeout   = 2 * time.Minute
 	displaySplashDuration = 5 * time.Second
 )
@@ -50,9 +50,10 @@ type displayServiceImpl struct {
 	wakeChan      chan struct{}
 
 	// scroll offsets: advanced each time the respective page renders
-	cpuCoreOffset int
-	netOffset     int
-	hddOffset     int
+	cpuCoreOffset  int
+	netOffset      int
+	hddOffset      int
+	hddSpaceOffset int
 }
 
 func NewDisplayService(
@@ -277,7 +278,9 @@ func (ds *displayServiceImpl) renderPage(page int) error {
 	case 2:
 		return ds.renderNetworkPage()
 	case 3:
-		return ds.renderHDDPage()
+		return ds.renderHDDSMARTPage()
+	case 4:
+		return ds.renderHDDSpacePage()
 	}
 	return nil
 }
@@ -308,10 +311,20 @@ func (ds *displayServiceImpl) renderCPUPage() error {
 
 	for p := offset; p < end; p++ {
 		i := p * 2
-		left := fmt.Sprintf("C%d:%.0f%%", stats.Cores[i].ID, stats.Cores[i].UsagePercent)
+		left := fmt.Sprintf(
+			"C%d:%.0f%%%.1fG",
+			stats.Cores[i].ID,
+			stats.Cores[i].UsagePercent,
+			stats.Cores[i].MaxFrequency/1000,
+		)
 		drawText(canvas, left, 0, y)
 		if i+1 < len(stats.Cores) {
-			right := fmt.Sprintf("C%d:%.0f%%", stats.Cores[i+1].ID, stats.Cores[i+1].UsagePercent)
+			right := fmt.Sprintf(
+				"C%d:%.0f%%%.1fG",
+				stats.Cores[i+1].ID,
+				stats.Cores[i+1].UsagePercent,
+				stats.Cores[i+1].MaxFrequency/1000,
+			)
 			drawText(canvas, right, canvasW/2, y)
 		}
 		y += lineHeight
@@ -328,7 +341,7 @@ func (ds *displayServiceImpl) renderMemoryPage() error {
 
 	const gb = float64(1 << 30)
 	usedGB := float64(stats.Used) / gb
-	totalGB := float64(stats.Total) / gb
+	availGB := float64(stats.Available) / gb
 	swapUsedGB := float64(stats.SwapUsed) / gb
 	swapTotalGB := float64(stats.SwapTotal) / gb
 
@@ -342,8 +355,8 @@ func (ds *displayServiceImpl) renderMemoryPage() error {
 	drawText(canvas, pctText, barW+2, y)
 	y += lineHeight
 
-	// RAM usage detail
-	drawText(canvas, fmt.Sprintf("RAM  %.1f / %.1f GB", usedGB, totalGB), 0, y)
+	// RAM: used by apps + reclaimable-inclusive available
+	drawText(canvas, fmt.Sprintf("Used %.1f  Avail %.1fG", usedGB, availGB), 0, y)
 	y += lineHeight
 
 	// Swap usage
@@ -377,23 +390,33 @@ func (ds *displayServiceImpl) renderNetworkPage() error {
 		return ds.oled.DrawImage(canvas)
 	}
 
-	offset, end, next := pageSlice(len(ifaces), ds.netOffset, linesPerPage)
-	ds.netOffset = next
+	// Show one interface at a time across 3 rows: speeds, cumulative totals, errors.
+	idx := ds.netOffset % len(ifaces)
+	ds.netOffset = (idx + 1) % len(ifaces)
+	iface := ifaces[idx]
+	stat := allStats[iface]
 
-	for _, iface := range ifaces[offset:end] {
-		stat := allStats[iface]
-		speeds := fmt.Sprintf("\u2193%s \u2191%s", formatSpeed(stat.ReceiveSpeed), formatSpeed(stat.SendSpeed))
-		speedsX := rightAlignX(speeds)
-		name := truncateToFit(iface, speedsX-6) // 6px gap before speeds
-		drawText(canvas, name, 0, y)
-		drawText(canvas, speeds, speedsX, y)
-		y += lineHeight
-	}
+	// Row 1: interface name + real-time speeds (right-aligned)
+	speeds := fmt.Sprintf("\u2193%s \u2191%s", formatSpeed(stat.ReceiveSpeed), formatSpeed(stat.SendSpeed))
+	speedsX := rightAlignX(speeds)
+	drawText(canvas, truncateToFit(iface, speedsX-6), 0, y)
+	drawText(canvas, speeds, speedsX, y)
+	y += lineHeight
+
+	// Row 2: cumulative RX/TX totals since boot
+	totals := fmt.Sprintf("\u2193%s \u2191%s", formatBytes(stat.BytesReceived), formatBytes(stat.BytesSent))
+	totalsX := rightAlignX(totals)
+	drawText(canvas, "tot", 0, y)
+	drawText(canvas, totals, totalsX, y)
+	y += lineHeight
+
+	// Row 3: errors and drops
+	drawText(canvas, fmt.Sprintf("err:%d drop:%d", stat.Errors, stat.Dropped), 0, y)
 
 	return ds.oled.DrawImage(canvas)
 }
 
-func (ds *displayServiceImpl) renderHDDPage() error {
+func (ds *displayServiceImpl) renderHDDSMARTPage() error {
 	allStats, err := ds.drives.GetStats()
 	if err != nil {
 		return fmt.Errorf("getting hdd stats: %w", err)
@@ -407,19 +430,75 @@ func (ds *displayServiceImpl) renderHDDPage() error {
 		return ds.oled.DrawImage(canvas)
 	}
 
-	offset, end, next := pageSlice(len(allStats), ds.hddOffset, linesPerPage)
-	ds.hddOffset = next
+	// Show one drive at a time across 3 rows: summary, power stats, error counters.
+	idx := ds.hddOffset % len(allStats)
+	ds.hddOffset = (idx + 1) % len(allStats)
+	stat := allStats[idx]
 
-	for _, stat := range allStats[offset:end] {
-		health := "OK"
-		if !stat.SmartStatus.HealthOK {
-			health = "!"
-		}
-		detail := fmt.Sprintf("%.0f\u00b0C %s", stat.Temperature, health)
-		detailX := rightAlignX(detail)
-		name := truncateToFit(stat.DeviceName, detailX-6) // 6px gap before detail
-		drawText(canvas, name, 0, y)
-		drawText(canvas, detail, detailX, y)
+	// Row 1: device name + temperature + SMART health
+	health := "PASS"
+	if !stat.SmartStatus.HealthOK {
+		health = "FAIL"
+	}
+	detail := fmt.Sprintf("%.0f\u00b0C %s", stat.Temperature, health)
+	detailX := rightAlignX(detail)
+	drawText(canvas, truncateToFit(stat.DeviceName, detailX-6), 0, y)
+	drawText(canvas, detail, detailX, y)
+	y += lineHeight
+
+	// Row 2: power-on hours + power cycle count + TB written
+	drawText(
+		canvas,
+		fmt.Sprintf("POH:%dh TBW:%dT", stat.SmartStatus.PowerOnHours, stat.SmartStatus.TerabytesWritten),
+		0,
+		y,
+	)
+	y += lineHeight
+
+	// Row 3: error indicators (reallocated sectors, uncorrectable errors, pending sectors)
+	drawText(
+		canvas,
+		fmt.Sprintf(
+			"RS:%d UE:%d PS:%d",
+			stat.SmartStatus.ReallocatedSectors,
+			stat.SmartStatus.UncorrectableErrors,
+			stat.SmartStatus.PendingSectors,
+		),
+		0,
+		y,
+	)
+
+	return ds.oled.DrawImage(canvas)
+}
+
+func (ds *displayServiceImpl) renderHDDSpacePage() error {
+	allStats, err := ds.drives.GetStats()
+	if err != nil {
+		return fmt.Errorf("getting hdd stats: %w", err)
+	}
+
+	canvas := newCanvas()
+	y := drawHeader(canvas, iconHDDPNG, "Disk Space")
+
+	// Collect all mounted partitions across all drives.
+	var allParts []resources.Partition
+	for _, stat := range allStats {
+		allParts = append(allParts, stat.Partitions...)
+	}
+
+	if len(allParts) == 0 {
+		drawText(canvas, "No partitions", 0, y)
+		return ds.oled.DrawImage(canvas)
+	}
+
+	offset, end, next := pageSlice(len(allParts), ds.hddSpaceOffset, linesPerPage)
+	ds.hddSpaceOffset = next
+
+	for _, part := range allParts[offset:end] {
+		sizes := fmt.Sprintf("%s/%s", formatBytes(part.Free), formatBytes(part.Total))
+		sizesX := rightAlignX(sizes)
+		drawText(canvas, truncateToFit(part.Mountpoint, sizesX-6), 0, y)
+		drawText(canvas, sizes, sizesX, y)
 		y += lineHeight
 	}
 
