@@ -12,7 +12,8 @@ The [official software](https://github.com/Argon40Tech/Argon40case) is a mix of 
   <img src="docs/demo.gif" alt="OLED display demo" />
 </p>
 
-> **Scope:** lumEON targets the Argon EON case only. Other Argon40 products are untested.
+> [!NOTE]
+> lumEON targets the Argon EON case only. Other Argon40 products are untested.
 
 ## Requirements
 

@@ -86,7 +86,9 @@ For example, with the default CPU curve above, a CPU at 55°C would trigger the 
 - Temperature values: integers in °C, 0–255
 - Speed values: integers as percentage, 0–100
 - Add as many points as you like; they are sorted automatically
-- If temperature reading fails (e.g. smartmontools not installed), the fan defaults to 100% as a safety measure
+
+> [!WARNING]
+> If a temperature reading fails (e.g. `smartmontools` is not installed or a drive is unreadable), lumEON defaults that channel to 100% fan speed as a fail-safe. If your fan is always running at full speed, check the troubleshooting section.
 
 ---
 
@@ -109,7 +111,8 @@ How many seconds each display page is shown before advancing to the next. For pa
 interval = 5   # seconds, minimum 1
 ```
 
-If set to 0 or a negative value, it defaults to 5 seconds.
+> [!NOTE]
+> If set to 0 or a negative value, the interval silently defaults to 5 seconds.
 
 ---
 

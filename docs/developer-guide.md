@@ -120,7 +120,8 @@ main()
 
 `RunAndManageApp` handles the signal plumbing and returns an exit code. All services receive the same context; cancelling it is the signal for all goroutines to stop.
 
-If `Init` encounters a fatal error (i2c bus unavailable, OLED not found, wrong architecture), it calls `os.Exit(1)` directly. This is intentional — there is nothing sensible to do without the hardware.
+> [!NOTE]
+> If `Init` encounters a fatal error (i2c bus unavailable, OLED not found, wrong architecture), it calls `os.Exit(1)` directly. This is intentional — there is nothing sensible to do without the hardware, and it keeps the error path simple and visible in the journal.
 
 ---
 
