@@ -94,7 +94,7 @@ linters:
           severity: warning
         - name: add-constant
           arguments:
-            - allowFloats: "0.0,1000.0"
+            - allowFloats: "0.0,100.0,1000.0"
               allowStrs: '"","  ","error","x","y"'
               allowInts: "0,1,2,3,4,6,7,8,10,16,64,100,128,0755,1024,0x07,0o600,0x8000"
               maxLitCount: "3"

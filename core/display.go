@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"image"
+	"image/draw"
 	"image/gif"
 	_ "image/png" // register PNG decoder
 	"log/slog"
@@ -22,6 +23,10 @@ const (
 	displayPageCount      = 5
 	displaySleepTimeout   = 2 * time.Minute
 	displaySplashDuration = 5 * time.Second
+
+	// Smooth-scroll animation for multi-subpage pages.
+	scrollStep  = 4                     // pixels advanced per animation frame
+	scrollDelay = 33 * time.Millisecond // ~30fps
 )
 
 type DisplayService interface {
@@ -49,11 +54,8 @@ type displayServiceImpl struct {
 	shutdownChan  chan struct{}
 	wakeChan      chan struct{}
 
-	// scroll offsets: advanced each time the respective page renders
-	cpuCoreOffset  int
-	netOffset      int
-	hddOffset      int
-	hddSpaceOffset int
+	// cpuCoreOffset scrolls core pairs on the CPU page.
+	cpuCoreOffset int
 }
 
 func NewDisplayService(
@@ -269,6 +271,86 @@ func pageSlice(total, offset, pageSize int) (start, end, next int) {
 	return
 }
 
+// scrollFrame composites the fixed header with a scrolled content slice and sends it to the OLED.
+// scrollOff is how many pixels of curr have scrolled off the top; next fills the gap from below.
+func (ds *displayServiceImpl) scrollFrame(icon image.Image, title string, curr, next image.Image, scrollOff int) error {
+	frame := newCanvas()
+	drawIcon(frame, icon, 0, 0)
+	drawText(frame, title, iconSize+2, 0)
+
+	showCurr := contentH - scrollOff
+	if showCurr > 0 {
+		draw.Draw(frame,
+			image.Rect(0, headerHeight, canvasW, headerHeight+showCurr),
+			curr,
+			image.Point{0, scrollOff},
+			draw.Src)
+	}
+	if next != nil && scrollOff > 0 {
+		draw.Draw(frame,
+			image.Rect(0, headerHeight+showCurr, canvasW, headerHeight+contentH),
+			next,
+			image.Point{0, 0},
+			draw.Src)
+	}
+	return ds.oled.DrawImage(frame)
+}
+
+// animateScroll smoothly scrolls the content area from curr to next over scrollStep-pixel increments.
+func (ds *displayServiceImpl) animateScroll(icon image.Image, title string, curr, next image.Image) error {
+	for off := scrollStep; off <= contentH; off += scrollStep {
+		if err := ds.scrollFrame(icon, title, curr, next, off); err != nil {
+			return err
+		}
+		select {
+		case <-ds.ctx.Done():
+			return nil
+		case <-time.After(scrollDelay):
+		}
+	}
+	return nil
+}
+
+// scrollPage renders a page with a fixed header and a vertically-scrolling content area.
+// subpages is a list of draw functions, each filling a 128×48 content canvas.
+// The first subpage is shown immediately; subsequent subpages scroll in from below
+// with a smooth animation. The method blocks until all subpages have been displayed,
+// advancing one subpage per display interval, or until the context is cancelled.
+func (ds *displayServiceImpl) scrollPage(iconData []byte, title string, subpages []func(draw.Image)) error {
+	if len(subpages) == 0 {
+		return nil
+	}
+
+	contents := make([]image.Image, len(subpages))
+	for i, fn := range subpages {
+		c := newContentCanvas()
+		fn(c)
+		contents[i] = c
+	}
+
+	icon := decodeIcon(iconData)
+
+	if err := ds.scrollFrame(icon, title, contents[0], nil, 0); err != nil {
+		return err
+	}
+
+	for i := range contents {
+		select {
+		case <-ds.ctx.Done():
+			return nil
+		case <-time.After(ds.displayConfig.Interval()):
+		}
+
+		if i+1 < len(contents) {
+			if err := ds.animateScroll(icon, title, contents[i], contents[i+1]); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 func (ds *displayServiceImpl) renderPage(page int) error {
 	switch page {
 	case 0:
@@ -382,38 +464,35 @@ func (ds *displayServiceImpl) renderNetworkPage() error {
 	}
 	sort.Strings(ifaces)
 
-	canvas := newCanvas()
-	y := drawHeader(canvas, iconNetworkPNG, "Network")
-
 	if len(ifaces) == 0 {
-		drawText(canvas, "No interfaces", 0, y)
+		canvas := newCanvas()
+		drawHeader(canvas, iconNetworkPNG, "Network")
+		drawText(canvas, "No interfaces", 0, headerHeight)
 		return ds.oled.DrawImage(canvas)
 	}
 
-	// Show one interface at a time across 3 rows: speeds, cumulative totals, errors.
-	idx := ds.netOffset % len(ifaces)
-	ds.netOffset = (idx + 1) % len(ifaces)
-	iface := ifaces[idx]
-	stat := allStats[iface]
+	// One subpage per interface: row1 speeds, row2 cumulative totals, row3 errors.
+	subpages := make([]func(draw.Image), len(ifaces))
+	for i, iface := range ifaces {
+		stat := allStats[iface]
+		subpages[i] = func(content draw.Image) {
+			y := 0
+			speeds := fmt.Sprintf("\u2193%s \u2191%s", formatSpeed(stat.ReceiveSpeed), formatSpeed(stat.SendSpeed))
+			speedsX := rightAlignX(speeds)
+			drawText(content, truncateToFit(iface, speedsX-6), 0, y)
+			drawText(content, speeds, speedsX, y)
+			y += lineHeight
 
-	// Row 1: interface name + real-time speeds (right-aligned)
-	speeds := fmt.Sprintf("\u2193%s \u2191%s", formatSpeed(stat.ReceiveSpeed), formatSpeed(stat.SendSpeed))
-	speedsX := rightAlignX(speeds)
-	drawText(canvas, truncateToFit(iface, speedsX-6), 0, y)
-	drawText(canvas, speeds, speedsX, y)
-	y += lineHeight
+			totals := fmt.Sprintf("\u2193%s \u2191%s", formatBytes(stat.BytesReceived), formatBytes(stat.BytesSent))
+			totalsX := rightAlignX(totals)
+			drawText(content, "tot", 0, y)
+			drawText(content, totals, totalsX, y)
+			y += lineHeight
 
-	// Row 2: cumulative RX/TX totals since boot
-	totals := fmt.Sprintf("\u2193%s \u2191%s", formatBytes(stat.BytesReceived), formatBytes(stat.BytesSent))
-	totalsX := rightAlignX(totals)
-	drawText(canvas, "tot", 0, y)
-	drawText(canvas, totals, totalsX, y)
-	y += lineHeight
-
-	// Row 3: errors and drops
-	drawText(canvas, fmt.Sprintf("err:%d drop:%d", stat.Errors, stat.Dropped), 0, y)
-
-	return ds.oled.DrawImage(canvas)
+			drawText(content, fmt.Sprintf("err:%d drop:%d", stat.Errors, stat.Dropped), 0, y)
+		}
+	}
+	return ds.scrollPage(iconNetworkPNG, "Network", subpages)
 }
 
 func (ds *displayServiceImpl) renderHDDSMARTPage() error {
@@ -422,53 +501,50 @@ func (ds *displayServiceImpl) renderHDDSMARTPage() error {
 		return fmt.Errorf("getting hdd stats: %w", err)
 	}
 
-	canvas := newCanvas()
-	y := drawHeader(canvas, iconHDDPNG, "Storage")
-
 	if len(allStats) == 0 {
-		drawText(canvas, "No drives", 0, y)
+		canvas := newCanvas()
+		drawHeader(canvas, iconHDDPNG, "Storage")
+		drawText(canvas, "No drives", 0, headerHeight)
 		return ds.oled.DrawImage(canvas)
 	}
 
-	// Show one drive at a time across 3 rows: summary, power stats, error counters.
-	idx := ds.hddOffset % len(allStats)
-	ds.hddOffset = (idx + 1) % len(allStats)
-	stat := allStats[idx]
+	// One subpage per drive: row1 name+temp+health, row2 POH+TBW, row3 error counters.
+	subpages := make([]func(draw.Image), len(allStats))
+	for i, stat := range allStats {
+		subpages[i] = func(content draw.Image) {
+			y := 0
+			health := "PASS"
+			if !stat.SmartStatus.HealthOK {
+				health = "FAIL"
+			}
+			detail := fmt.Sprintf("%.0f\u00b0C %s", stat.Temperature, health)
+			detailX := rightAlignX(detail)
+			drawText(content, truncateToFit(stat.DeviceName, detailX-6), 0, y)
+			drawText(content, detail, detailX, y)
+			y += lineHeight
 
-	// Row 1: device name + temperature + SMART health
-	health := "PASS"
-	if !stat.SmartStatus.HealthOK {
-		health = "FAIL"
+			drawText(
+				content,
+				fmt.Sprintf("POH:%dh TBW:%dT", stat.SmartStatus.PowerOnHours, stat.SmartStatus.TerabytesWritten),
+				0,
+				y,
+			)
+			y += lineHeight
+
+			drawText(
+				content,
+				fmt.Sprintf(
+					"RS:%d UE:%d PS:%d",
+					stat.SmartStatus.ReallocatedSectors,
+					stat.SmartStatus.UncorrectableErrors,
+					stat.SmartStatus.PendingSectors,
+				),
+				0,
+				y,
+			)
+		}
 	}
-	detail := fmt.Sprintf("%.0f\u00b0C %s", stat.Temperature, health)
-	detailX := rightAlignX(detail)
-	drawText(canvas, truncateToFit(stat.DeviceName, detailX-6), 0, y)
-	drawText(canvas, detail, detailX, y)
-	y += lineHeight
-
-	// Row 2: power-on hours + power cycle count + TB written
-	drawText(
-		canvas,
-		fmt.Sprintf("POH:%dh TBW:%dT", stat.SmartStatus.PowerOnHours, stat.SmartStatus.TerabytesWritten),
-		0,
-		y,
-	)
-	y += lineHeight
-
-	// Row 3: error indicators (reallocated sectors, uncorrectable errors, pending sectors)
-	drawText(
-		canvas,
-		fmt.Sprintf(
-			"RS:%d UE:%d PS:%d",
-			stat.SmartStatus.ReallocatedSectors,
-			stat.SmartStatus.UncorrectableErrors,
-			stat.SmartStatus.PendingSectors,
-		),
-		0,
-		y,
-	)
-
-	return ds.oled.DrawImage(canvas)
+	return ds.scrollPage(iconHDDPNG, "Storage", subpages)
 }
 
 func (ds *displayServiceImpl) renderHDDSpacePage() error {
@@ -477,9 +553,6 @@ func (ds *displayServiceImpl) renderHDDSpacePage() error {
 		return fmt.Errorf("getting hdd stats: %w", err)
 	}
 
-	canvas := newCanvas()
-	y := drawHeader(canvas, iconHDDPNG, "Disk Space")
-
 	// Collect all mounted partitions across all drives.
 	var allParts []resources.Partition
 	for _, stat := range allStats {
@@ -487,22 +560,31 @@ func (ds *displayServiceImpl) renderHDDSpacePage() error {
 	}
 
 	if len(allParts) == 0 {
-		drawText(canvas, "No partitions", 0, y)
+		canvas := newCanvas()
+		drawHeader(canvas, iconHDDPNG, "Disk Space")
+		drawText(canvas, "No partitions", 0, headerHeight)
 		return ds.oled.DrawImage(canvas)
 	}
 
-	offset, end, next := pageSlice(len(allParts), ds.hddSpaceOffset, linesPerPage)
-	ds.hddSpaceOffset = next
+	// One subpage per partition: row1 mountpoint, row2 usage bar+%, row3 free/total.
+	subpages := make([]func(draw.Image), len(allParts))
+	for i, part := range allParts {
+		subpages[i] = func(content draw.Image) {
+			y := 0
+			drawText(content, truncateToFit(part.Mountpoint, canvasW), 0, y)
+			y += lineHeight
 
-	for _, part := range allParts[offset:end] {
-		sizes := fmt.Sprintf("%s/%s", formatBytes(part.Free), formatBytes(part.Total))
-		sizesX := rightAlignX(sizes)
-		drawText(canvas, truncateToFit(part.Mountpoint, sizesX-6), 0, y)
-		drawText(canvas, sizes, sizesX, y)
-		y += lineHeight
+			usedPct := 100.0 * float64(part.Total-part.Free) / float64(part.Total)
+			pctText := fmt.Sprintf(" %.0f%%", usedPct)
+			barW := canvasW - textWidth(pctText) - 2
+			drawProgressBar(content, 0, y, barW, usedPct)
+			drawText(content, pctText, barW+2, y)
+			y += lineHeight
+
+			drawText(content, fmt.Sprintf("%s free / %s", formatBytes(part.Free), formatBytes(part.Total)), 0, y)
+		}
 	}
-
-	return ds.oled.DrawImage(canvas)
+	return ds.scrollPage(iconHDDPNG, "Disk Space", subpages)
 }
 
 // renderSplash draws the embedded splash onto the display.

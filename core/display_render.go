@@ -19,7 +19,8 @@ const (
 	canvasH = 64
 
 	// Layout constants for stat pages.
-	headerHeight = 16 // icon row height
+	headerHeight = 16                     // icon row height
+	contentH     = canvasH - headerHeight // scrollable content area height (48px, 3 rows)
 	iconSize     = 16
 	lineHeight   = 16 // text line height (matches bitmapfont 6×16)
 	barHeight    = 16 // matches lineHeight so bar and text share the same row slot
@@ -29,6 +30,11 @@ const (
 // newCanvas creates a blank 128×64 monochrome canvas (all black).
 func newCanvas() *image1bit.VerticalLSB {
 	return image1bit.NewVerticalLSB(image.Rect(0, 0, canvasW, canvasH))
+}
+
+// newContentCanvas creates a blank 128×48 monochrome canvas for a scrollable subpage content area.
+func newContentCanvas() *image1bit.VerticalLSB {
+	return image1bit.NewVerticalLSB(image.Rect(0, 0, canvasW, contentH))
 }
 
 // drawIcon blits a decoded icon image onto the canvas at (x, y).
