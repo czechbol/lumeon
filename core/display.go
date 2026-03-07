@@ -132,6 +132,10 @@ func (ds *displayServiceImpl) Shutdown(ctx context.Context) error {
 func (ds *displayServiceImpl) displayLoop() {
 	defer close(ds.shutdownChan)
 
+	// Start continuous CPU polling immediately so the cache is warm by the
+	// time the first page renders, and stays fresh throughout the cycle.
+	ds.cpu.Poll(ds.ctx)
+
 	if !ds.showStartupSplash() {
 		return
 	}
@@ -142,9 +146,8 @@ func (ds *displayServiceImpl) displayLoop() {
 	defer sleepTimer.Stop()
 
 	// Render first page immediately after splash. The ticker is created
-	// afterwards so that any blocking inside renderPage (e.g. cpu.Percent's
-	// 5-second sampling window on a cold cache) doesn't pre-fire a tick and
-	// cause the next page to render without dwell time.
+	// afterwards so that a slow renderPage doesn't pre-fire a tick and cause
+	// the next page to render without dwell time.
 	if err := ds.renderPage(page); err != nil {
 		slog.Error("failed to render display page", "page", page, "error", err)
 	}
@@ -179,11 +182,6 @@ func (ds *displayServiceImpl) displayLoop() {
 // for the splash duration. Returns false if the context was cancelled.
 func (ds *displayServiceImpl) showStartupSplash() bool {
 	slog.Info("showing startup splash")
-	go func() {
-		if _, err := ds.cpu.GetStats(); err != nil {
-			slog.Warn("failed to warm CPU stats cache", "error", err)
-		}
-	}()
 
 	start := time.Now()
 	if err := ds.renderAnimatedSplash(); err != nil {
@@ -615,6 +613,6 @@ func (ds *displayServiceImpl) renderAnimatedSplash() error {
 		slog.Warn("failed to decode animated splash, falling back to static", "error", err)
 		return ds.renderSplash()
 	}
-	g.LoopCount = -1 // play once
+	g.LoopCount = 1 // play once (LoopCount -1 makes the DrawGIF loop bound negative)
 	return ds.oled.DrawGIF(g)
 }

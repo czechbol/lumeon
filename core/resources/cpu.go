@@ -4,6 +4,7 @@
 package resources
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -39,6 +40,10 @@ type CoreStats struct {
 type CPU interface {
 	GetAverageTemp() (float64, error)
 	GetStats() (*CPUStats, error)
+	// Poll starts a background goroutine that continuously refreshes the
+	// CPU stats cache so GetStats always returns quickly from cache.
+	// The goroutine stops when ctx is cancelled.
+	Poll(ctx context.Context)
 }
 
 type cpuImpl struct {
@@ -117,16 +122,33 @@ func readTemperature(path string) (float64, error) {
 	return temp / 1000.0, nil
 }
 
-// GetStats returns comprehensive CPU statistics.
-func (c *cpuImpl) GetStats() (*CPUStats, error) {
-	c.mu.RLock()
-	if c.cachedStats != nil && time.Since(c.cacheTime) < c.cacheTTL {
-		stats := *c.cachedStats
-		c.mu.RUnlock()
-		return &stats, nil
-	}
-	c.mu.RUnlock()
+// Poll starts a goroutine that continuously measures CPU stats and keeps the
+// cache fresh. Each measurement takes ~5 s (cpu.Percent sampling window), so
+// the goroutine naturally throttles itself without an explicit sleep.
+func (c *cpuImpl) Poll(ctx context.Context) {
+	go func() {
+		for {
+			c.mu.RLock()
+			fresh := c.cachedStats != nil && time.Since(c.cacheTime) < c.cacheTTL
+			c.mu.RUnlock()
 
+			if !fresh {
+				if _, err := c.measure(); err != nil {
+					slog.Warn("cpu poller: measurement failed", "error", err)
+				}
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(c.cacheTTL / 2):
+			}
+		}
+	}()
+}
+
+// measure takes a fresh CPU sample, updates the cache, and returns the result.
+func (c *cpuImpl) measure() (*CPUStats, error) {
 	percentages, err := cpu.Percent(time.Second*5, true)
 	if err != nil {
 		return nil, err
@@ -170,4 +192,17 @@ func (c *cpuImpl) GetStats() (*CPUStats, error) {
 
 	stats := *result
 	return &stats, nil
+}
+
+// GetStats returns comprehensive CPU statistics, using the cache when fresh.
+func (c *cpuImpl) GetStats() (*CPUStats, error) {
+	c.mu.RLock()
+	if c.cachedStats != nil && time.Since(c.cacheTime) < c.cacheTTL {
+		stats := *c.cachedStats
+		c.mu.RUnlock()
+		return &stats, nil
+	}
+	c.mu.RUnlock()
+
+	return c.measure()
 }
