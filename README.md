@@ -8,6 +8,10 @@ An alternative daemon for the [Argon40 EON](https://www.argon40.com/products/arg
 
 The [official software](https://github.com/Argon40Tech/Argon40case) is a mix of shell and Python scripts running in a single loop. lumEON replaces it with a single self-contained Go binary.
 
+<p align="center">
+  <img src="docs/demo.gif" alt="OLED display demo" />
+</p>
+
 > **Scope:** lumEON targets the Argon EON case only. Other Argon40 products are untested.
 
 ## Requirements
