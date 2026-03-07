@@ -99,10 +99,31 @@ $ i2cdetect -y 1
 
 The default config is installed at `/etc/lumeon/lumeon.toml`. Edit it to adjust fan curves, display interval, and log level, then restart the service.
 
+```toml
+logLevel = "info"   # debug | info | warn | error
+
+[fan]
+enabled = true
+cpuCurve = { "0" = "20", "30" = "25", "50" = "50", "70" = "90", "75" = "100" }
+hddCurve = { "0" = "20", "30" = "25", "40" = "50", "50" = "85", "60" = "100" }
+
+[display]
+enabled = true
+interval = 5   # seconds per page
+```
+
+See the [User Guide](docs/user-guide.md) for a full explanation of every option.
+
+## Documentation
+
+- [User Guide](docs/user-guide.md) — configuration reference, display pages, button and sleep behaviour
+- [Developer Guide](docs/developer-guide.md) — architecture, code structure, build and test instructions
+- [Contributing Guide](docs/contributing.md) — how to contribute: setup, style, PR process
+
 ## Acknowledgements
 
 lumEON was initially inspired by and built upon [neon](https://codeberg.org/pancake/neon) by pancake, also licensed [MPL-2.0](https://codeberg.org/pancake/neon/raw/branch/main/LICENSE).
 
 ## Contributing
 
-Source code is published under the [Mozilla Public License 2.0](LICENSE).
+Source code is published under the [Mozilla Public License 2.0](LICENSE). See the [Contributing Guide](docs/contributing.md) for how to get started.
